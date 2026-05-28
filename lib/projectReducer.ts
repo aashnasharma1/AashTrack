@@ -8,6 +8,7 @@ import type {
   DurationMinutes,
 } from '@/types/task';
 import { buildTaskTiming } from '@/utils/scheduleUtils';
+import { toSlug, uniqueSlug } from '@/utils/taskUtils';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -58,9 +59,12 @@ export function projectReducer(state: ProjectsState, action: ProjectAction): Pro
 
     // ── projects ──────────────────────────────────────────────────────────────
     case 'PROJECT_ADD': {
+      const name = action.payload.name.trim();
+      const existingSlugs = state.projects.map((p) => p.slug);
       const project: Project = {
         id: `proj_${uid()}`,
-        name: action.payload.name.trim(),
+        name,
+        slug: uniqueSlug(toSlug(name), existingSlugs),
         description: action.payload.description.trim(),
         color: action.payload.color,
         createdAt: new Date().toISOString(),
@@ -71,16 +75,20 @@ export function projectReducer(state: ProjectsState, action: ProjectAction): Pro
     case 'PROJECT_UPDATE':
       return {
         ...state,
-        projects: state.projects.map((p) =>
-          p.id === action.payload.id
-            ? {
-                ...p,
-                name: action.payload.name.trim(),
-                description: action.payload.description.trim(),
-                color: action.payload.color,
-              }
-            : p,
-        ),
+        projects: state.projects.map((p) => {
+          if (p.id !== action.payload.id) return p;
+          const name = action.payload.name.trim();
+          const otherSlugs = state.projects
+            .filter((x) => x.id !== action.payload.id)
+            .map((x) => x.slug);
+          return {
+            ...p,
+            name,
+            slug: uniqueSlug(toSlug(name), otherSlugs),
+            description: action.payload.description.trim(),
+            color: action.payload.color,
+          };
+        }),
       };
 
     case 'PROJECT_DELETE':
@@ -98,10 +106,13 @@ export function projectReducer(state: ProjectsState, action: ProjectAction): Pro
     // ── modules ───────────────────────────────────────────────────────────────
     case 'MODULE_ADD': {
       const siblings = state.modules.filter((m) => m.projectId === action.payload.projectId);
+      const modName = action.payload.name.trim();
+      const sibSlugs = siblings.map((m) => m.slug);
       const mod: ProjectModule = {
         id: `mod_${uid()}`,
         projectId: action.payload.projectId,
-        name: action.payload.name.trim(),
+        name: modName,
+        slug: uniqueSlug(toSlug(modName), sibSlugs),
         description: action.payload.description.trim(),
         createdAt: new Date().toISOString(),
         order: siblings.length,
@@ -112,15 +123,19 @@ export function projectReducer(state: ProjectsState, action: ProjectAction): Pro
     case 'MODULE_UPDATE':
       return {
         ...state,
-        modules: state.modules.map((m) =>
-          m.id === action.payload.id
-            ? {
-                ...m,
-                name: action.payload.name.trim(),
-                description: action.payload.description.trim(),
-              }
-            : m,
-        ),
+        modules: state.modules.map((m) => {
+          if (m.id !== action.payload.id) return m;
+          const modName = action.payload.name.trim();
+          const sibSlugs = state.modules
+            .filter((x) => x.projectId === m.projectId && x.id !== m.id)
+            .map((x) => x.slug);
+          return {
+            ...m,
+            name: modName,
+            slug: uniqueSlug(toSlug(modName), sibSlugs),
+            description: action.payload.description.trim(),
+          };
+        }),
       };
 
     case 'MODULE_DELETE':

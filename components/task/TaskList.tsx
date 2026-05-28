@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -14,20 +14,20 @@ import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTasks } from '@/hooks/useTasks';
 import { useTaskDnd } from '@/hooks/useTaskDnd';
+import { useProjectContext } from '@/context/ProjectContext';
 import { TaskCard } from './TaskCard';
 import { TaskForm } from './TaskForm';
 import { FilterBar } from './FilterBar';
 import { EmptyState } from './EmptyState';
 import { Button } from '@/components/ui/Button';
+import { filterAndSortTasks, hasActiveFilters } from '@/utils/taskUtils';
 import type { Task, TaskFormValues } from '@/types/task';
 
 export function TaskList() {
   const {
-    tasks,
-    filteredTasks,
+    tasks: inboxTasks,
     filter,
     sort,
-    isFiltered,
     addTask,
     updateTask,
     deleteTask,
@@ -37,64 +37,70 @@ export function TaskList() {
     clearFilters,
   } = useTasks();
 
+  const { state: projectState, updateModuleTask, deleteModuleTask } = useProjectContext();
+
+  // Merge inbox tasks + all module tasks into one unified list
+  const allTasks = useMemo(
+    () => [...inboxTasks, ...projectState.moduleTasks],
+    [inboxTasks, projectState.moduleTasks],
+  );
+
+  const filteredTasks = useMemo(
+    () => filterAndSortTasks(allTasks, filter, sort),
+    [allTasks, filter, sort],
+  );
+
+  const isFiltered = hasActiveFilters(filter);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
   const [activeId, setActiveId] = useState<string | null>(null);
-  // Track whether the current drag is over a task of a different priority
   const [dragBlocked, setDragBlocked] = useState(false);
 
-  const { sensors } = useTaskDnd({ tasks: filteredTasks, onReorder: reorderTasks });
+  // Only inbox tasks are reorderable from this view
+  const { sensors } = useTaskDnd({ tasks: inboxTasks, onReorder: reorderTasks });
 
-  const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null;
+  const activeTask = activeId ? allTasks.find((t) => t.id === activeId) : null;
 
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    setActiveId(event.active.id as string);
+  const handleDragStart = useCallback((e: DragStartEvent) => {
+    setActiveId(e.active.id as string);
     setDragBlocked(false);
   }, []);
 
   const handleDragOver = useCallback(
-    (event: DragOverEvent) => {
-      const { active, over } = event;
+    (e: DragOverEvent) => {
+      const { active, over } = e;
       if (!over) return;
-      const draggedTask = filteredTasks.find((t) => t.id === active.id);
-      const overTask = filteredTasks.find((t) => t.id === over.id);
-      if (draggedTask && overTask) {
-        setDragBlocked(draggedTask.priority !== overTask.priority);
-      }
+      const a = filteredTasks.find((t) => t.id === active.id);
+      const o = filteredTasks.find((t) => t.id === over.id);
+      if (a && o) setDragBlocked(a.priority !== o.priority);
     },
     [filteredTasks],
   );
 
   const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
+    (e: DragEndEvent) => {
+      const { active, over } = e;
       setActiveId(null);
       setDragBlocked(false);
       if (!over || active.id === over.id) return;
-
-      const draggedTask = filteredTasks.find((t) => t.id === active.id);
-      const overTask = filteredTasks.find((t) => t.id === over.id);
-
-      // Block cross-priority reorder
-      if (!draggedTask || !overTask || draggedTask.priority !== overTask.priority) {
+      const dragged = inboxTasks.find((t) => t.id === active.id);
+      const target = inboxTasks.find((t) => t.id === over.id);
+      if (!dragged || !target || dragged.priority !== target.priority) {
         toast.error('Tasks can only be reordered within the same priority level.');
         return;
       }
-
-      const oldIndex = filteredTasks.findIndex((t) => t.id === active.id);
-      const newIndex = filteredTasks.findIndex((t) => t.id === over.id);
-      if (oldIndex !== -1 && newIndex !== -1) {
-        reorderTasks(arrayMove(filteredTasks, oldIndex, newIndex));
-      }
+      const oldIdx = inboxTasks.findIndex((t) => t.id === active.id);
+      const newIdx = inboxTasks.findIndex((t) => t.id === over.id);
+      if (oldIdx !== -1 && newIdx !== -1) reorderTasks(arrayMove(inboxTasks, oldIdx, newIdx));
     },
-    [filteredTasks, reorderTasks],
+    [inboxTasks, reorderTasks],
   );
 
   const handleOpenCreate = () => {
     setEditingTask(undefined);
     setModalOpen(true);
   };
-
   const handleOpenEdit = (task: Task) => {
     setEditingTask(task);
     setModalOpen(true);
@@ -102,7 +108,12 @@ export function TaskList() {
 
   const handleSubmit = (values: TaskFormValues) => {
     if (editingTask) {
-      updateTask(editingTask.id, values);
+      // Route update to correct store depending on whether task belongs to a module
+      if (editingTask.moduleId) {
+        updateModuleTask(editingTask.id, values);
+      } else {
+        updateTask(editingTask.id, values);
+      }
       toast.success('Task updated');
     } else {
       addTask(values);
@@ -111,12 +122,14 @@ export function TaskList() {
   };
 
   const handleDelete = (id: string) => {
-    const task = tasks.find((t) => t.id === id);
-    deleteTask(id);
+    const task = allTasks.find((t) => t.id === id);
+    if (task?.moduleId) {
+      deleteModuleTask(id);
+    } else {
+      deleteTask(id);
+    }
     toast.success(`"${task?.title ?? 'Task'}" deleted`);
   };
-
-  const isDragDisabled = isFiltered;
 
   return (
     <div className="flex flex-col gap-5">
@@ -125,7 +138,7 @@ export function TaskList() {
         <FilterBar
           filter={filter}
           sort={sort}
-          taskCount={tasks.length}
+          taskCount={allTasks.length}
           filteredCount={filteredTasks.length}
           onFilterChange={setFilter}
           onSortChange={setSort}
@@ -142,7 +155,6 @@ export function TaskList() {
           Drag-to-reorder is disabled while filters are active.
         </p>
       )}
-
       {!isFiltered && filteredTasks.length > 1 && (
         <p className="text-xs text-gray-400 dark:text-gray-600">
           You can drag tasks within the same priority level to reorder them.
@@ -174,7 +186,7 @@ export function TaskList() {
                     task={task}
                     onEdit={handleOpenEdit}
                     onDelete={handleDelete}
-                    isDragDisabled={isDragDisabled}
+                    isDragDisabled={isFiltered || !!task.moduleId}
                   />
                 </div>
               ))}

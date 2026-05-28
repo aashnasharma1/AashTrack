@@ -78,9 +78,6 @@ function SortableTaskRow({ task, onEdit, onDelete }: RowProps) {
       </td>
 
       {/* Row number */}
-      <td className="w-8 py-2.5 pr-3 text-xs text-gray-300 dark:text-gray-700" aria-hidden="true">
-        {task.order + 1}
-      </td>
 
       {/* Title */}
       <td className="max-w-[200px] py-2.5 pr-4">
@@ -118,9 +115,11 @@ function SortableTaskRow({ task, onEdit, onDelete }: RowProps) {
         <StatusBadge status={task.status} />
       </td>
 
-      {/* Time window */}
       <td className="whitespace-nowrap py-2.5 pr-4 text-xs text-gray-500 dark:text-gray-400">
-        {formatTime(task.startTime)} → {formatTime(task.effectiveEndTime)}
+        {formatTime(task.startTime)}
+      </td>
+      <td className="whitespace-nowrap py-2.5 pr-4 text-xs text-gray-500 dark:text-gray-400">
+        {formatTime(task.effectiveEndTime)}
       </td>
 
       {/* Duration */}
@@ -184,7 +183,8 @@ export function TaskTable({ tasks, onEdit, onDelete }: TaskTableProps) {
             <TH className="pr-4">Task</TH>
             <TH className="pr-4">Priority</TH>
             <TH className="pr-4">Status</TH>
-            <TH className="pr-4">Time Window</TH>
+            <TH className="pr-4">Start Time</TH>
+            <TH className="pr-4">End Time</TH>
             <TH className="pr-4">Duration</TH>
             <TH className="pr-4">Remaining</TH>
             <TH className="pr-3 text-right">Actions</TH>

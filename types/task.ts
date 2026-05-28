@@ -103,6 +103,8 @@ export interface TasksState {
 export interface Project {
   id: string;
   name: string;
+  /** URL-safe slug derived from name, e.g. "mobile-app-1" */
+  slug: string;
   description: string;
   color: ProjectColor;
   createdAt: string;
@@ -118,6 +120,8 @@ export interface ProjectModule {
   id: string;
   projectId: string;
   name: string;
+  /** URL-safe slug derived from name, e.g. "backend-sprint" */
+  slug: string;
   description: string;
   createdAt: string;
   order: number;

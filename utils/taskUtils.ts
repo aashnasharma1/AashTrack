@@ -82,3 +82,28 @@ export function getPriorityWeight(priority: Priority): number {
 export function hasActiveFilters(filter: FilterState): boolean {
   return filter.status !== '' || filter.priority !== '';
 }
+
+/**
+ * Converts any string to a URL-safe slug.
+ * "Mobile App 1" → "mobile-app-1"
+ * "  Hello   World! " → "hello-world"
+ */
+export function toSlug(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '') // remove non-alphanumeric except spaces/hyphens
+    .replace(/\s+/g, '-') // spaces → hyphens
+    .replace(/-+/g, '-') // collapse multiple hyphens
+    .replace(/^-|-$/g, ''); // strip leading/trailing hyphens
+}
+
+/**
+ * Ensures a slug is unique within a list of existing slugs by appending -2, -3, etc.
+ */
+export function uniqueSlug(base: string, existing: string[]): string {
+  if (!existing.includes(base)) return base;
+  let counter = 2;
+  while (existing.includes(`${base}-${counter}`)) counter++;
+  return `${base}-${counter}`;
+}
