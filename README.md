@@ -1,36 +1,112 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TaskFlow — Mini Task Management Dashboard
 
-## Getting Started
+A production-quality personal task manager built for the Trantor Frontend Developer take-home assignment.
 
-First, run the development server:
+## Setup
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm test          # run all tests with coverage report
+npm run lint      # ESLint check
+npm run format    # Prettier format
+npm run build     # production build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Features
 
-## Learn More
+- **Create, edit, delete** tasks with full form validation
+- **Priority** (Low / Medium / High) and **Status** (To Do / In Progress / Done) on every task card
+- **Filter** by status and/or priority — filter chips in the toolbar
+- **Sort** by date, priority, or title — toggleable asc/desc per column
+- **Drag-and-drop reorder** via @dnd-kit (disabled while filters are active)
+- **Dark mode** — system default + manual toggle
+- **Empty state** — distinct states for "no tasks" vs "no matching filters"
+- **Inline validation errors** — required fields, character limits (title: 100, description: 500)
+- **Confirmation step** on delete — double-click guard against accidental deletion
+- **localStorage persistence** — tasks survive page refresh with a silent graceful fallback
+- **Accessible** — keyboard navigation, ARIA labels, focus trapping in modal, focus restoration on close
 
-To learn more about Next.js, take a look at the following resources:
+## Architecture
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Framework: Next.js 14 (App Router)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Chosen over plain React because:
 
-## Deploy on Vercel
+- App Router provides a clean, scalable file structure that signals production awareness
+- `next/font` + `next-themes` integrate cleanly with the SSR model
+- TypeScript strict mode and ESLint configs are wired by default
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### State Management: `useReducer` + React Context
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Why not Zustand or Redux?**  
+This app has a single domain (tasks) with predictable CRUD operations. `useReducer` makes every state transition explicit, auditable, and easily testable in isolation without a third-party runtime. Context provides ergonomic access without prop-drilling. The trade-off vs Zustand is minor boilerplate — worth it to demonstrate understanding of React's own state primitives rather than reaching for a library by default.
+
+**Why not URL params for filter state?**  
+URL params work well for shareable filters in multi-user or team dashboards (e.g. Jira). For a _personal_ task manager the user never shares a URL with someone else — persisting filters in URL adds URL noise without benefit. `useReducer` + in-memory state gives instant updates with no serialization round-trips. Sort preference is persisted in localStorage so it survives page refresh.
+
+### Folder Structure
+
+```
+app/               → Next.js App Router (layout, page)
+components/
+  layout/          → Header, ThemeToggle
+  task/            → TaskCard, TaskForm, TaskList, FilterBar, EmptyState
+  ui/              → Shared primitives: Button, Input, Textarea, Select, Badge, Modal
+context/           → TaskContext (TaskProvider + useTaskContext)
+hooks/             → useTasks (domain hook), useTaskDnd (drag-and-drop hook)
+lib/               → taskReducer, validation schema (Zod), cn utility
+types/             → Task, Priority, Status, FilterState, SortState
+utils/             → taskUtils (pure functions: filter, sort, format, truncate)
+__tests__/         → Unit tests mirroring source structure
+```
+
+### Form Handling: React Hook Form + Zod
+
+Zero re-renders on keystroke (RHF's uncontrolled model), with Zod providing TypeScript-first schema validation. Character limits and required-field errors surface inline — no silent failures.
+
+### Drag and Drop: @dnd-kit
+
+Chosen over `react-beautiful-dnd` (unmaintained) and HTML5 DnD API (no touch support). @dnd-kit is accessible, touch-compatible, and used in my prior production work. Drag reorder is disabled while filters are active because the reordered index would not map back to the unfiltered list correctly.
+
+### Styling: Tailwind CSS
+
+Utility-first CSS with `tailwind-merge` + `clsx` for conditional class composition. Dark mode via `next-themes` with `class` strategy.
+
+## Testing
+
+**Vitest + React Testing Library**. Vitest is Jest-compatible but faster and native to the Next.js/Vite ecosystem. Coverage is measured with `@vitest/coverage-v8`.
+
+Run: `npm test`
+
+Tests cover:
+
+- All utility functions (`filterTasks`, `sortTasks`, `generateId`, `truncate`, `formatRelativeDate`, etc.)
+- Zod validation schema (all valid/invalid combinations)
+- `taskReducer` (all action types)
+- `useTasks` custom hook (CRUD, filter, sort, reorder)
+- `TaskCard` component (render, edit, delete confirmation flow)
+- `TaskForm` component (create/edit modes, validation, keyboard dismiss)
+- `EmptyState` component (filtered vs unfiltered state)
+- `Badge` components
+
+**Coverage: ~89%** (lines) — above the 70% threshold.
+
+## Code Quality Tooling
+
+- **ESLint**: `next/core-web-vitals` + `@typescript-eslint/recommended` + `prettier` integration. No `any` types enforced.
+- **Prettier**: single quotes, trailing commas, 100-char print width, `prettier-plugin-tailwindcss` for class ordering.
+- **Husky + lint-staged**: pre-commit hook runs `eslint --fix` and `prettier --write` on staged files.
+
+## Known Trade-offs & What I'd Do With More Time
+
+- **No URL-based filter state**: justified above. Would add it for a team-facing dashboard where filter links are shared.
+- **No optimistic updates**: unnecessary for localStorage-only — operations are synchronous.
+- **No Playwright E2E tests**: would add a full create → filter → delete flow covering the happy path.
+- **No virtualization**: for hundreds of tasks, a windowed list (e.g. `@tanstack/react-virtual`) would be needed.
+- **Single-page layout**: would add a task detail route (`/tasks/[id]`) for richer viewing on larger screens.
