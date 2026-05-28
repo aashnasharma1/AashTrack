@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const TITLE_MAX = 100;
 export const DESCRIPTION_MAX = 500;
+export const COLLECTION_MAX = 50;
 
 export const taskSchema = z.object({
   title: z
@@ -15,11 +16,13 @@ export const taskSchema = z.object({
   priority: z.enum(['low', 'medium', 'high'] as const, {
     message: 'Please select a priority',
   }),
-  status: z.enum(['todo', 'in-progress', 'done', 'overdue'] as const, {
+  status: z.enum(['todo', 'in-progress', 'done'] as const, {
     message: 'Please select a status',
   }),
-  startTime: z.string().min(1, 'Start time is required'),
-  duration: z.number().min(1, 'Please select a duration'),
+  collection: z
+    .string()
+    .min(1, 'Collection is required')
+    .max(COLLECTION_MAX, `Collection must be ${COLLECTION_MAX} characters or fewer`),
 });
 
 export type TaskSchemaValues = z.infer<typeof taskSchema>;

@@ -10,8 +10,9 @@ interface FilterBarProps {
   sort: SortState;
   taskCount: number;
   filteredCount: number;
-  onFilterChange: (filter: Partial<FilterState>) => void;
-  onSortChange: (sort: Partial<SortState>) => void;
+  collections: string[];
+  onFilterChange: (f: Partial<FilterState>) => void;
+  onSortChange: (s: Partial<SortState>) => void;
   onClearFilters: () => void;
 }
 
@@ -75,7 +76,6 @@ function FilterChip({ label, active, activeLabel, onClear, children }: FilterChi
             </>
           )}
         </summary>
-
         <div className="absolute left-0 top-full z-20 mt-1.5 min-w-[140px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
           {children}
         </div>
@@ -89,41 +89,21 @@ export function FilterBar({
   sort,
   taskCount,
   filteredCount,
+  collections,
   onFilterChange,
   onSortChange,
   onClearFilters,
 }: FilterBarProps) {
-  const hasActiveFilters = filter.status !== '' || filter.priority !== '';
-
-  const handleStatusSelect = (value: Status) => {
-    onFilterChange({ status: filter.status === value ? '' : value });
-    // Close the details element
-    document.querySelector('details[open]')?.removeAttribute('open');
-  };
-
-  const handlePrioritySelect = (value: Priority) => {
-    onFilterChange({ priority: filter.priority === value ? '' : value });
-    document.querySelector('details[open]')?.removeAttribute('open');
-  };
-
-  const handleSortByChange = (value: SortBy) => {
-    if (sort.sortBy === value) {
-      onSortChange({
-        sortOrder: sort.sortOrder === 'asc' ? 'desc' : 'asc',
-      });
-    } else {
-      onSortChange({ sortBy: value, sortOrder: 'desc' });
-    }
-    document.querySelector('details[open]')?.removeAttribute('open');
-  };
-
+  const hasActive = filter.status !== '' || filter.priority !== '' || filter.collection !== '';
   const sortOrderLabel = sort.sortOrder === 'asc' ? '↑' : '↓';
+
+  const close = () => document.querySelector('details[open]')?.removeAttribute('open');
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {/* Task count */}
+      {/* Count */}
       <span className="text-sm text-gray-500 dark:text-gray-400">
-        {hasActiveFilters ? (
+        {hasActive ? (
           <>
             <span className="font-medium text-gray-900 dark:text-gray-100">{filteredCount}</span>
             {' of '}
@@ -141,6 +121,36 @@ export function FilterBar({
 
       <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" aria-hidden="true" />
 
+      {/* Collection filter */}
+      {collections.length > 0 && (
+        <FilterChip
+          label="Collection"
+          active={filter.collection !== ''}
+          activeLabel={filter.collection || undefined}
+          onClear={() => onFilterChange({ collection: '' })}
+        >
+          {collections.map((c) => (
+            <button
+              key={c}
+              onClick={() => {
+                onFilterChange({ collection: filter.collection === c ? '' : c });
+                close();
+              }}
+              className={cn(
+                'flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition-colors hover:bg-gray-50 dark:hover:bg-gray-800',
+                filter.collection === c
+                  ? 'font-medium text-indigo-600 dark:text-indigo-400'
+                  : 'text-gray-700 dark:text-gray-300',
+              )}
+              aria-pressed={filter.collection === c}
+            >
+              {c}
+              {filter.collection === c && <span className="text-indigo-500">✓</span>}
+            </button>
+          ))}
+        </FilterChip>
+      )}
+
       {/* Status filter */}
       <FilterChip
         label="Status"
@@ -151,10 +161,12 @@ export function FilterBar({
         {STATUS_OPTIONS.map((opt) => (
           <button
             key={opt.value}
-            onClick={() => handleStatusSelect(opt.value)}
+            onClick={() => {
+              onFilterChange({ status: filter.status === opt.value ? '' : opt.value });
+              close();
+            }}
             className={cn(
-              'flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition-colors',
-              'hover:bg-gray-50 dark:hover:bg-gray-800',
+              'flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition-colors hover:bg-gray-50 dark:hover:bg-gray-800',
               filter.status === opt.value
                 ? 'font-medium text-indigo-600 dark:text-indigo-400'
                 : 'text-gray-700 dark:text-gray-300',
@@ -177,10 +189,12 @@ export function FilterBar({
         {PRIORITY_OPTIONS.map((opt) => (
           <button
             key={opt.value}
-            onClick={() => handlePrioritySelect(opt.value)}
+            onClick={() => {
+              onFilterChange({ priority: filter.priority === opt.value ? '' : opt.value });
+              close();
+            }}
             className={cn(
-              'flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition-colors',
-              'hover:bg-gray-50 dark:hover:bg-gray-800',
+              'flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition-colors hover:bg-gray-50 dark:hover:bg-gray-800',
               filter.priority === opt.value
                 ? 'font-medium text-indigo-600 dark:text-indigo-400'
                 : 'text-gray-700 dark:text-gray-300',
@@ -201,14 +215,19 @@ export function FilterBar({
           {SORT_OPTIONS.map((opt) => (
             <button
               key={opt.value}
-              onClick={() => handleSortByChange(opt.value as SortBy)}
+              onClick={() => {
+                if (sort.sortBy === opt.value) {
+                  onSortChange({ sortOrder: sort.sortOrder === 'asc' ? 'desc' : 'asc' });
+                } else {
+                  onSortChange({ sortBy: opt.value as SortBy, sortOrder: 'desc' });
+                }
+              }}
               className={cn(
                 'rounded px-1.5 py-0.5 text-xs font-medium transition-colors',
                 sort.sortBy === opt.value
                   ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300'
                   : 'text-gray-500 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300',
               )}
-              aria-label={`Sort by ${opt.label} ${sort.sortBy === opt.value ? (sort.sortOrder === 'asc' ? 'ascending' : 'descending') : ''}`}
             >
               {opt.label}
               {sort.sortBy === opt.value && <span className="ml-0.5">{sortOrderLabel}</span>}
@@ -217,8 +236,8 @@ export function FilterBar({
         </div>
       </div>
 
-      {/* Clear all filters */}
-      {hasActiveFilters && (
+      {/* Clear all */}
+      {hasActive && (
         <button
           onClick={onClearFilters}
           className="flex items-center gap-1 rounded-full px-2 py-1.5 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-300"

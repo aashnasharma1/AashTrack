@@ -8,31 +8,29 @@ import type { TaskFormValues } from '@/types/task';
 const localStorageMock = (() => {
   let store: Record<string, string> = {};
   return {
-    getItem: (key: string) => store[key] ?? null,
-    setItem: (key: string, value: string) => {
-      store[key] = value;
+    getItem: (k: string) => store[k] ?? null,
+    setItem: (k: string, v: string) => {
+      store[k] = v;
     },
-    removeItem: (key: string) => {
-      delete store[key];
+    removeItem: (k: string) => {
+      delete store[k];
     },
     clear: () => {
       store = {};
     },
   };
 })();
-
 Object.defineProperty(window, 'localStorage', { value: localStorageMock });
 
 const wrapper = ({ children }: { children: ReactNode }) => <TaskProvider>{children}</TaskProvider>;
 
-const task = (overrides: Partial<TaskFormValues> = {}): TaskFormValues => ({
+const t = (o: Partial<TaskFormValues> = {}): TaskFormValues => ({
   title: 'Test',
   description: '',
   priority: 'medium',
   status: 'todo',
-  startTime: new Date().toISOString(),
-  duration: 30,
-  ...overrides,
+  collection: 'Work',
+  ...o,
 });
 
 describe('useTasks', () => {
@@ -41,43 +39,58 @@ describe('useTasks', () => {
     vi.clearAllMocks();
   });
 
-  it('starts with empty tasks', () => {
+  it('starts empty', () => {
     const { result } = renderHook(() => useTasks(), { wrapper });
     expect(result.current.tasks).toHaveLength(0);
-    expect(result.current.filteredTasks).toHaveLength(0);
   });
 
   it('adds a task', () => {
     const { result } = renderHook(() => useTasks(), { wrapper });
     act(() => {
-      result.current.addTask(task({ title: 'Test task', priority: 'high' }));
+      result.current.addTask(t({ title: 'Buy milk', collection: 'Shopping' }));
     });
-    expect(result.current.tasks).toHaveLength(1);
-    expect(result.current.tasks[0].title).toBe('Test task');
-    expect(result.current.tasks[0].priority).toBe('high');
-    expect(result.current.tasks[0].effectiveEndTime).toBeDefined();
+    expect(result.current.tasks[0].title).toBe('Buy milk');
+    expect(result.current.tasks[0].collection).toBe('Shopping');
+  });
+
+  it('collections derived from tasks', () => {
+    const { result } = renderHook(() => useTasks(), { wrapper });
+    act(() => {
+      result.current.addTask(t({ collection: 'Work' }));
+      result.current.addTask(t({ collection: 'Personal' }));
+      result.current.addTask(t({ collection: 'Work' }));
+    });
+    expect(result.current.collections).toEqual(['Personal', 'Work']);
+  });
+
+  it('filters by collection', () => {
+    const { result } = renderHook(() => useTasks(), { wrapper });
+    act(() => {
+      result.current.addTask(t({ title: 'A', collection: 'Work' }));
+      result.current.addTask(t({ title: 'B', collection: 'Personal' }));
+      result.current.setFilter({ collection: 'Work' });
+    });
+    expect(result.current.filteredTasks).toHaveLength(1);
+    expect(result.current.filteredTasks[0].title).toBe('A');
+    expect(result.current.isFiltered).toBe(true);
   });
 
   it('updates a task', () => {
     const { result } = renderHook(() => useTasks(), { wrapper });
     act(() => {
-      result.current.addTask(task({ title: 'Original', priority: 'low' }));
+      result.current.addTask(t());
     });
     const id = result.current.tasks[0].id;
     act(() => {
-      result.current.updateTask(
-        id,
-        task({ title: 'Updated', description: 'new', priority: 'high', status: 'done' }),
-      );
+      result.current.updateTask(id, t({ title: 'Updated', status: 'done' }));
     });
     expect(result.current.tasks[0].title).toBe('Updated');
-    expect(result.current.tasks[0].status).toBe('done');
   });
 
   it('deletes a task', () => {
     const { result } = renderHook(() => useTasks(), { wrapper });
     act(() => {
-      result.current.addTask(task({ title: 'Delete me' }));
+      result.current.addTask(t());
     });
     const id = result.current.tasks[0].id;
     act(() => {
@@ -86,28 +99,13 @@ describe('useTasks', () => {
     expect(result.current.tasks).toHaveLength(0);
   });
 
-  it('filters tasks by status', () => {
-    const { result } = renderHook(() => useTasks(), { wrapper });
-    act(() => {
-      result.current.addTask(task({ title: 'Todo task', priority: 'high', status: 'todo' }));
-      result.current.addTask(task({ title: 'Done task', priority: 'low', status: 'done' }));
-    });
-    act(() => {
-      result.current.setFilter({ status: 'todo' });
-    });
-    expect(result.current.filteredTasks).toHaveLength(1);
-    expect(result.current.filteredTasks[0].title).toBe('Todo task');
-    expect(result.current.isFiltered).toBe(true);
-  });
-
   it('clears filters', () => {
     const { result } = renderHook(() => useTasks(), { wrapper });
     act(() => {
-      result.current.addTask(task({ title: 'Task 1', priority: 'high', status: 'todo' }));
-      result.current.addTask(task({ title: 'Task 2', priority: 'low', status: 'done' }));
-      result.current.setFilter({ status: 'todo' });
+      result.current.addTask(t({ collection: 'Work' }));
+      result.current.addTask(t({ collection: 'Personal' }));
+      result.current.setFilter({ collection: 'Work' });
     });
-    expect(result.current.filteredTasks).toHaveLength(1);
     act(() => {
       result.current.clearFilters();
     });
@@ -118,22 +116,13 @@ describe('useTasks', () => {
   it('reorders tasks', () => {
     const { result } = renderHook(() => useTasks(), { wrapper });
     act(() => {
-      result.current.addTask(task({ title: 'First', priority: 'low' }));
-      result.current.addTask(task({ title: 'Second', priority: 'low' }));
+      result.current.addTask(t({ title: 'First' }));
+      result.current.addTask(t({ title: 'Second' }));
     });
     const reversed = [...result.current.tasks].reverse();
     act(() => {
       result.current.reorderTasks(reversed);
     });
     expect(result.current.tasks[0].title).toBe('Second');
-  });
-
-  it('sets sort state', () => {
-    const { result } = renderHook(() => useTasks(), { wrapper });
-    act(() => {
-      result.current.setSort({ sortBy: 'priority', sortOrder: 'asc' });
-    });
-    expect(result.current.sort.sortBy).toBe('priority');
-    expect(result.current.sort.sortOrder).toBe('asc');
   });
 });

@@ -6,30 +6,22 @@ export function generateId(): string {
 }
 
 export function filterTasks(tasks: Task[], filter: FilterState): Task[] {
-  return tasks.filter((task) => {
-    if (filter.status && task.status !== filter.status) return false;
-    if (filter.priority && task.priority !== filter.priority) return false;
+  return tasks.filter((t) => {
+    if (filter.status && t.status !== filter.status) return false;
+    if (filter.priority && t.priority !== filter.priority) return false;
+    if (filter.collection && t.collection !== filter.collection) return false;
     return true;
   });
 }
 
 export function sortTasks(tasks: Task[], sort: SortState): Task[] {
   return [...tasks].sort((a, b) => {
-    const { sortBy, sortOrder } = sort;
-    const dir = sortOrder === 'asc' ? 1 : -1;
-
-    if (sortBy === 'createdAt') {
+    const dir = sort.sortOrder === 'asc' ? 1 : -1;
+    if (sort.sortBy === 'createdAt')
       return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * dir;
-    }
-
-    if (sortBy === 'priority') {
+    if (sort.sortBy === 'priority')
       return (PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]) * dir;
-    }
-
-    if (sortBy === 'title') {
-      return a.title.localeCompare(b.title) * dir;
-    }
-
+    if (sort.sortBy === 'title') return a.title.localeCompare(b.title) * dir;
     return (a.order - b.order) * dir;
   });
 }
@@ -39,8 +31,7 @@ export function filterAndSortTasks(tasks: Task[], filter: FilterState, sort: Sor
 }
 
 export function formatDate(isoString: string): string {
-  const date = new Date(isoString);
-  return date.toLocaleDateString('en-US', {
+  return new Date(isoString).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -48,14 +39,10 @@ export function formatDate(isoString: string): string {
 }
 
 export function formatRelativeDate(isoString: string): string {
-  const now = Date.now();
-  const then = new Date(isoString).getTime();
-  const diff = now - then;
-
+  const diff = Date.now() - new Date(isoString).getTime();
   const minutes = Math.floor(diff / 60_000);
   const hours = Math.floor(diff / 3_600_000);
   const days = Math.floor(diff / 86_400_000);
-
   if (minutes < 1) return 'just now';
   if (minutes < 60) return `${minutes}m ago`;
   if (hours < 24) return `${hours}h ago`;
@@ -69,8 +56,8 @@ export function truncate(text: string, maxLength: number): string {
 }
 
 export function countTasksByStatus(tasks: Task[]): Record<string, number> {
-  return tasks.reduce<Record<string, number>>((acc, task) => {
-    acc[task.status] = (acc[task.status] ?? 0) + 1;
+  return tasks.reduce<Record<string, number>>((acc, t) => {
+    acc[t.status] = (acc[t.status] ?? 0) + 1;
     return acc;
   }, {});
 }
@@ -80,27 +67,19 @@ export function getPriorityWeight(priority: Priority): number {
 }
 
 export function hasActiveFilters(filter: FilterState): boolean {
-  return filter.status !== '' || filter.priority !== '';
+  return filter.status !== '' || filter.priority !== '' || filter.collection !== '';
 }
 
-/**
- * Converts any string to a URL-safe slug.
- * "Mobile App 1" → "mobile-app-1"
- * "  Hello   World! " → "hello-world"
- */
 export function toSlug(name: string): string {
   return name
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '') // remove non-alphanumeric except spaces/hyphens
-    .replace(/\s+/g, '-') // spaces → hyphens
-    .replace(/-+/g, '-') // collapse multiple hyphens
-    .replace(/^-|-$/g, ''); // strip leading/trailing hyphens
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
 }
 
-/**
- * Ensures a slug is unique within a list of existing slugs by appending -2, -3, etc.
- */
 export function uniqueSlug(base: string, existing: string[]): string {
   if (!existing.includes(base)) return base;
   let counter = 2;

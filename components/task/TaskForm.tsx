@@ -8,8 +8,8 @@ import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
-import { taskSchema, TITLE_MAX, DESCRIPTION_MAX, type TaskSchemaValues } from '@/lib/validation';
-import { DURATION_OPTIONS, DURATION_LABELS } from '@/types/task';
+import { taskSchema, TITLE_MAX, DESCRIPTION_MAX, COLLECTION_MAX } from '@/lib/validation';
+import type { TaskSchemaValues } from '@/lib/validation';
 import type { Task, TaskFormValues } from '@/types/task';
 
 const PRIORITY_OPTIONS = [
@@ -24,25 +24,22 @@ const STATUS_OPTIONS = [
   { value: 'done', label: 'Done' },
 ];
 
-const DURATION_SELECT_OPTIONS = DURATION_OPTIONS.map((d) => ({
-  value: String(d),
-  label: DURATION_LABELS[d],
-}));
-
-/** Format a Date as the value expected by <input type="datetime-local"> */
-function toDatetimeLocal(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
 interface TaskFormProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (values: TaskFormValues) => void;
   defaultValues?: Task;
+  /** Existing collections for autocomplete */
+  collections?: string[];
 }
 
-export function TaskForm({ open, onClose, onSubmit, defaultValues }: TaskFormProps) {
+export function TaskForm({
+  open,
+  onClose,
+  onSubmit,
+  defaultValues,
+  collections = [],
+}: TaskFormProps) {
   const isEditing = !!defaultValues;
 
   const {
@@ -58,8 +55,7 @@ export function TaskForm({ open, onClose, onSubmit, defaultValues }: TaskFormPro
       description: '',
       priority: 'medium',
       status: 'todo',
-      startTime: toDatetimeLocal(new Date()),
-      duration: 30,
+      collection: '',
     },
   });
 
@@ -71,33 +67,24 @@ export function TaskForm({ open, onClose, onSubmit, defaultValues }: TaskFormPro
               title: defaultValues.title,
               description: defaultValues.description,
               priority: defaultValues.priority,
-              status: defaultValues.status === 'overdue' ? 'in-progress' : defaultValues.status,
-              startTime: toDatetimeLocal(new Date(defaultValues.startTime)),
-              duration: defaultValues.duration,
+              status: defaultValues.status,
+              collection: defaultValues.collection,
             }
-          : {
-              title: '',
-              description: '',
-              priority: 'medium',
-              status: 'todo',
-              startTime: toDatetimeLocal(new Date()),
-              duration: 30,
-            },
+          : { title: '', description: '', priority: 'medium', status: 'todo', collection: '' },
       );
     }
   }, [open, defaultValues, reset]);
 
   const titleValue = watch('title');
   const descValue = watch('description');
+  const collectionValue = watch('collection');
 
   const handleClose = () => {
     reset();
     onClose();
   };
-
   const handleFormSubmit = (values: TaskSchemaValues) => {
-    const isoStart = new Date(values.startTime).toISOString();
-    onSubmit({ ...values, startTime: isoStart } as TaskFormValues);
+    onSubmit(values as TaskFormValues);
     handleClose();
   };
 
@@ -111,7 +98,6 @@ export function TaskForm({ open, onClose, onSubmit, defaultValues }: TaskFormPro
           {...register('title')}
           error={errors.title?.message}
           charCount={{ current: titleValue?.length ?? 0, max: TITLE_MAX }}
-          maxLength={TITLE_MAX + 10}
           autoComplete="off"
         />
 
@@ -121,8 +107,53 @@ export function TaskForm({ open, onClose, onSubmit, defaultValues }: TaskFormPro
           {...register('description')}
           error={errors.description?.message}
           charCount={{ current: descValue?.length ?? 0, max: DESCRIPTION_MAX }}
-          maxLength={DESCRIPTION_MAX + 10}
         />
+
+        {/* Collection — required, with autocomplete from existing collections */}
+        <div className="flex flex-col gap-1">
+          <label
+            htmlFor="collection"
+            className="text-sm font-medium text-gray-700 dark:text-gray-300"
+          >
+            Collection{' '}
+            <span className="ml-0.5 text-red-500" aria-label="required">
+              *
+            </span>
+          </label>
+          <input
+            id="collection"
+            list="collection-options"
+            placeholder="e.g. Work, Personal, Shopping"
+            autoComplete="off"
+            {...register('collection')}
+            aria-invalid={!!errors.collection}
+            aria-describedby={errors.collection ? 'collection-error' : undefined}
+            className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          />
+          <datalist id="collection-options">
+            {collections.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+          <div className="flex items-center justify-between">
+            {errors.collection ? (
+              <p
+                id="collection-error"
+                role="alert"
+                className="text-xs text-red-600 dark:text-red-400"
+              >
+                {errors.collection.message}
+              </p>
+            ) : (
+              <span />
+            )}
+            <p
+              className={`ml-auto text-xs ${(collectionValue?.length ?? 0) > COLLECTION_MAX * 0.9 ? 'text-amber-600' : 'text-gray-400'}`}
+            >
+              {collectionValue?.length ?? 0}/{COLLECTION_MAX}
+            </p>
+          </div>
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <Select
@@ -138,37 +169,6 @@ export function TaskForm({ open, onClose, onSubmit, defaultValues }: TaskFormPro
             options={STATUS_OPTIONS}
             {...register('status')}
             error={errors.status?.message}
-          />
-        </div>
-
-        {/* Timing row */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1">
-            <label
-              htmlFor="startTime"
-              className="text-sm font-medium text-gray-700 dark:text-gray-300"
-            >
-              Start time <span className="ml-0.5 text-red-500">*</span>
-            </label>
-            <input
-              id="startTime"
-              type="datetime-local"
-              {...register('startTime')}
-              className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-            />
-            {errors.startTime && (
-              <p role="alert" className="text-xs text-red-600 dark:text-red-400">
-                {errors.startTime.message}
-              </p>
-            )}
-          </div>
-
-          <Select
-            label="Duration"
-            required
-            options={DURATION_SELECT_OPTIONS}
-            {...register('duration', { valueAsNumber: true })}
-            error={errors.duration?.message}
           />
         </div>
 

@@ -7,89 +7,79 @@ import {
   useEffect,
   useCallback,
   useRef,
+  useMemo,
   type ReactNode,
 } from 'react';
-import { taskReducer, type TaskAction } from '@/lib/taskReducer';
+import { taskReducer, initialState, type TaskAction } from '@/lib/taskReducer';
 import type { TasksState, Task, TaskFormValues, FilterState, SortState } from '@/types/task';
 
-const STORAGE_KEY = 'AashTrack_tasks';
+const STORAGE_KEY = 'aashtrack_tasks';
 
-const defaultState: TasksState = {
-  tasks: [],
-  filter: { status: '', priority: '' },
-  sort: { sortBy: 'startTime', sortOrder: 'asc' },
-};
-
-function loadFromStorage(): TasksState {
+function load(): TasksState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultState;
+    if (!raw) return initialState;
     const parsed = JSON.parse(raw) as Partial<TasksState>;
     return {
       tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
-      filter: defaultState.filter,
-      sort: parsed.sort ?? defaultState.sort,
+      filter: initialState.filter,
+      sort: parsed.sort ?? initialState.sort,
     };
   } catch {
-    return defaultState;
+    return initialState;
   }
 }
 
-function saveToStorage(state: TasksState): void {
+function save(state: TasksState): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ tasks: state.tasks, sort: state.sort }));
   } catch {
-    // localStorage unavailable or quota exceeded — silently continue
+    // quota exceeded or unavailable — silently continue
   }
 }
 
 interface TaskContextValue {
   state: TasksState;
   dispatch: React.Dispatch<TaskAction>;
-  addTask: (values: TaskFormValues) => void;
-  updateTask: (id: string, values: TaskFormValues) => void;
+  collections: string[];
+  addTask: (v: TaskFormValues) => void;
+  updateTask: (id: string, v: TaskFormValues) => void;
   deleteTask: (id: string) => void;
   reorderTasks: (tasks: Task[]) => void;
-  setFilter: (filter: Partial<FilterState>) => void;
-  setSort: (sort: Partial<SortState>) => void;
+  setFilter: (f: Partial<FilterState>) => void;
+  setSort: (s: Partial<SortState>) => void;
   clearFilters: () => void;
 }
 
 const TaskContext = createContext<TaskContextValue | null>(null);
 
 export function TaskProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(taskReducer, defaultState, () => defaultState);
+  const [state, dispatch] = useReducer(taskReducer, initialState);
   const hydrated = useRef(false);
 
-  // Hydrate from localStorage once on client mount
   useEffect(() => {
     if (hydrated.current) return;
     hydrated.current = true;
-    const stored = loadFromStorage();
-    dispatch({ type: 'HYDRATE', payload: stored });
+    dispatch({ type: 'HYDRATE', payload: load() });
   }, []);
 
-  // Persist on every state change
   useEffect(() => {
     if (!hydrated.current) return;
-    saveToStorage(state);
+    save(state);
   }, [state]);
 
-  // Refresh overdue status every 60 seconds
-  useEffect(() => {
-    const id = setInterval(() => {
-      dispatch({ type: 'REFRESH_OVERDUE' });
-    }, 60_000);
-    return () => clearInterval(id);
-  }, []);
+  // Derive sorted unique collection names from tasks
+  const collections = useMemo(() => {
+    const set = new Set(state.tasks.map((t) => t.collection).filter(Boolean));
+    return Array.from(set).sort();
+  }, [state.tasks]);
 
   const addTask = useCallback(
-    (values: TaskFormValues) => dispatch({ type: 'ADD_TASK', payload: values }),
+    (v: TaskFormValues) => dispatch({ type: 'ADD_TASK', payload: v }),
     [],
   );
   const updateTask = useCallback(
-    (id: string, values: TaskFormValues) =>
-      dispatch({ type: 'UPDATE_TASK', payload: { id, ...values } }),
+    (id: string, v: TaskFormValues) => dispatch({ type: 'UPDATE_TASK', payload: { id, ...v } }),
     [],
   );
   const deleteTask = useCallback(
@@ -101,11 +91,11 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     [],
   );
   const setFilter = useCallback(
-    (filter: Partial<FilterState>) => dispatch({ type: 'SET_FILTER', payload: filter }),
+    (f: Partial<FilterState>) => dispatch({ type: 'SET_FILTER', payload: f }),
     [],
   );
   const setSort = useCallback(
-    (sort: Partial<SortState>) => dispatch({ type: 'SET_SORT', payload: sort }),
+    (s: Partial<SortState>) => dispatch({ type: 'SET_SORT', payload: s }),
     [],
   );
   const clearFilters = useCallback(() => dispatch({ type: 'CLEAR_FILTERS' }), []);
@@ -115,6 +105,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       value={{
         state,
         dispatch,
+        collections,
         addTask,
         updateTask,
         deleteTask,
