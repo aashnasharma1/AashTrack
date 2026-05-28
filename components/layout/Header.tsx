@@ -1,19 +1,27 @@
-import { CheckSquare } from 'lucide-react';
+'use client';
+
+import { usePathname } from 'next/navigation';
 import { ThemeToggle } from './ThemeToggle';
 
+// Derive a readable page title from the pathname
+function usePageTitle(): string {
+  const pathname = usePathname();
+  if (pathname === '/') return 'My Tasks';
+  if (pathname === '/projects') return 'Projects';
+  if (/^\/projects\/[^/]+$/.test(pathname)) return 'Project';
+  if (/^\/projects\/[^/]+\/modules\/[^/]+$/.test(pathname)) return 'Module';
+  return 'TaskFlow';
+}
+
 export function Header() {
+  const title = usePageTitle();
+
   return (
-    <header className="sticky top-0 z-30 border-b border-gray-200 bg-white/80 backdrop-blur-md dark:border-gray-800 dark:bg-gray-950/80">
-      <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3 sm:px-6">
-        <div className="flex items-center gap-2">
-          <CheckSquare
-            className="h-5 w-5 text-indigo-600 dark:text-indigo-400"
-            aria-hidden="true"
-          />
-          <span className="text-base font-semibold text-gray-900 dark:text-gray-100">TaskFlow</span>
-        </div>
-        <ThemeToggle />
-      </div>
+    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white/80 px-4 backdrop-blur-md dark:border-gray-800 dark:bg-gray-950/80 sm:px-6">
+      <h1 className="text-sm font-semibold text-gray-900 dark:text-gray-100 md:hidden">{title}</h1>
+      {/* On md+ the sidebar shows the brand; header just holds the theme toggle */}
+      <span className="hidden md:block" />
+      <ThemeToggle />
     </header>
   );
 }
