@@ -14,6 +14,8 @@ const statusStyles: Record<Status, string> = {
   'in-progress':
     'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800',
   done: 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950 dark:text-violet-300 dark:border-violet-800',
+  overdue:
+    'bg-red-100 text-red-700 border-red-300 dark:bg-red-950 dark:text-red-400 dark:border-red-700',
 };
 
 interface PriorityBadgeProps {

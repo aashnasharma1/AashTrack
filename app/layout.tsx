@@ -11,7 +11,7 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
-  title: 'TaskFlow — Personal Task Manager',
+  title: 'AashTrack — Personal Task Manager',
   description: 'A clean, minimal task management dashboard',
 };
 
@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <ThemeProvider attribute="class" defaultTheme="light">
           <TaskProvider>
             <ProjectProvider>
               <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-950">

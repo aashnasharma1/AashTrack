@@ -1,9 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import { taskReducer, initialState } from '@/lib/taskReducer';
-import type { TasksState } from '@/types/task';
+import type { TasksState, TaskFormValues } from '@/types/task';
 
 const makeState = (overrides: Partial<TasksState> = {}): TasksState => ({
   ...initialState,
+  ...overrides,
+});
+
+const basePayload = (overrides: Partial<TaskFormValues> = {}): TaskFormValues => ({
+  title: 'Test task',
+  description: '',
+  priority: 'medium',
+  status: 'todo',
+  startTime: new Date().toISOString(),
+  duration: 30,
   ...overrides,
 });
 
@@ -12,21 +22,37 @@ describe('taskReducer', () => {
     it('adds a task with generated id and createdAt', () => {
       const state = taskReducer(makeState(), {
         type: 'ADD_TASK',
-        payload: { title: 'Test task', description: '', priority: 'high', status: 'todo' },
+        payload: basePayload({ title: 'Test task', priority: 'high' }),
       });
       expect(state.tasks).toHaveLength(1);
       expect(state.tasks[0].title).toBe('Test task');
       expect(state.tasks[0].id).toBeDefined();
       expect(state.tasks[0].createdAt).toBeDefined();
+      expect(state.tasks[0].effectiveEndTime).toBeDefined();
     });
 
     it('trims whitespace from title and description', () => {
       const state = taskReducer(makeState(), {
         type: 'ADD_TASK',
-        payload: { title: '  trimmed  ', description: '  desc  ', priority: 'low', status: 'done' },
+        payload: basePayload({
+          title: '  trimmed  ',
+          description: '  desc  ',
+          priority: 'low',
+          status: 'done',
+        }),
       });
       expect(state.tasks[0].title).toBe('trimmed');
       expect(state.tasks[0].description).toBe('desc');
+    });
+
+    it('sets effectiveEndTime = startTime + duration', () => {
+      const start = new Date('2024-06-01T10:00:00.000Z').toISOString();
+      const state = taskReducer(makeState(), {
+        type: 'ADD_TASK',
+        payload: basePayload({ startTime: start, duration: 60 }),
+      });
+      const expected = new Date('2024-06-01T11:00:00.000Z').toISOString();
+      expect(state.tasks[0].effectiveEndTime).toBe(expected);
     });
   });
 
@@ -34,17 +60,19 @@ describe('taskReducer', () => {
     it('updates matching task fields', () => {
       const base = taskReducer(makeState(), {
         type: 'ADD_TASK',
-        payload: { title: 'Original', description: '', priority: 'low', status: 'todo' },
+        payload: basePayload({ title: 'Original', priority: 'low' }),
       });
       const taskId = base.tasks[0].id;
       const updated = taskReducer(base, {
         type: 'UPDATE_TASK',
         payload: {
           id: taskId,
-          title: 'Updated',
-          description: 'new desc',
-          priority: 'high',
-          status: 'done',
+          ...basePayload({
+            title: 'Updated',
+            description: 'new desc',
+            priority: 'high',
+            status: 'done',
+          }),
         },
       });
       expect(updated.tasks[0].title).toBe('Updated');
@@ -55,16 +83,19 @@ describe('taskReducer', () => {
     it('does not change other tasks', () => {
       let state = taskReducer(makeState(), {
         type: 'ADD_TASK',
-        payload: { title: 'Task 1', description: '', priority: 'low', status: 'todo' },
+        payload: basePayload({ title: 'Task 1', priority: 'low' }),
       });
       state = taskReducer(state, {
         type: 'ADD_TASK',
-        payload: { title: 'Task 2', description: '', priority: 'medium', status: 'in-progress' },
+        payload: basePayload({ title: 'Task 2', priority: 'medium', status: 'in-progress' }),
       });
       const id1 = state.tasks[0].id;
       const updated = taskReducer(state, {
         type: 'UPDATE_TASK',
-        payload: { id: id1, title: 'Changed', description: '', priority: 'high', status: 'done' },
+        payload: {
+          id: id1,
+          ...basePayload({ title: 'Changed', priority: 'high', status: 'done' }),
+        },
       });
       expect(updated.tasks[1].title).toBe('Task 2');
     });
@@ -74,7 +105,7 @@ describe('taskReducer', () => {
     it('removes the task by id', () => {
       const state = taskReducer(makeState(), {
         type: 'ADD_TASK',
-        payload: { title: 'Delete me', description: '', priority: 'low', status: 'todo' },
+        payload: basePayload({ title: 'Delete me' }),
       });
       const id = state.tasks[0].id;
       const after = taskReducer(state, { type: 'DELETE_TASK', payload: id });
@@ -85,11 +116,11 @@ describe('taskReducer', () => {
       let state = makeState();
       state = taskReducer(state, {
         type: 'ADD_TASK',
-        payload: { title: 'Keep', description: '', priority: 'medium', status: 'todo' },
+        payload: basePayload({ title: 'Keep', priority: 'medium' }),
       });
       state = taskReducer(state, {
         type: 'ADD_TASK',
-        payload: { title: 'Delete', description: '', priority: 'low', status: 'done' },
+        payload: basePayload({ title: 'Delete', priority: 'low', status: 'done' }),
       });
       const deleteId = state.tasks[1].id;
       const after = taskReducer(state, { type: 'DELETE_TASK', payload: deleteId });
@@ -137,11 +168,11 @@ describe('taskReducer', () => {
       let state = makeState();
       state = taskReducer(state, {
         type: 'ADD_TASK',
-        payload: { title: 'A', description: '', priority: 'low', status: 'todo' },
+        payload: basePayload({ title: 'A', priority: 'low' }),
       });
       state = taskReducer(state, {
         type: 'ADD_TASK',
-        payload: { title: 'B', description: '', priority: 'low', status: 'todo' },
+        payload: basePayload({ title: 'B', priority: 'low' }),
       });
       const reversed = [...state.tasks].reverse();
       const reordered = taskReducer(state, { type: 'REORDER_TASKS', payload: reversed });

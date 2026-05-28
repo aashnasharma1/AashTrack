@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
-import { taskSchema, TITLE_MAX, DESCRIPTION_MAX } from '@/lib/validation';
+import { taskSchema, TITLE_MAX, DESCRIPTION_MAX, type TaskSchemaValues } from '@/lib/validation';
+import { DURATION_OPTIONS, DURATION_LABELS } from '@/types/task';
 import type { Task, TaskFormValues } from '@/types/task';
 
 const PRIORITY_OPTIONS = [
@@ -22,6 +23,17 @@ const STATUS_OPTIONS = [
   { value: 'in-progress', label: 'In Progress' },
   { value: 'done', label: 'Done' },
 ];
+
+const DURATION_SELECT_OPTIONS = DURATION_OPTIONS.map((d) => ({
+  value: String(d),
+  label: DURATION_LABELS[d],
+}));
+
+/** Format a Date as the value expected by <input type="datetime-local"> */
+function toDatetimeLocal(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
 interface TaskFormProps {
   open: boolean;
@@ -39,17 +51,18 @@ export function TaskForm({ open, onClose, onSubmit, defaultValues }: TaskFormPro
     reset,
     watch,
     formState: { errors, isSubmitting },
-  } = useForm<TaskFormValues>({
+  } = useForm<TaskSchemaValues>({
     resolver: zodResolver(taskSchema),
     defaultValues: {
       title: '',
       description: '',
       priority: 'medium',
       status: 'todo',
+      startTime: toDatetimeLocal(new Date()),
+      duration: 30,
     },
   });
 
-  // Reset form values when modal opens or task changes
   useEffect(() => {
     if (open) {
       reset(
@@ -58,9 +71,18 @@ export function TaskForm({ open, onClose, onSubmit, defaultValues }: TaskFormPro
               title: defaultValues.title,
               description: defaultValues.description,
               priority: defaultValues.priority,
-              status: defaultValues.status,
+              status: defaultValues.status === 'overdue' ? 'in-progress' : defaultValues.status,
+              startTime: toDatetimeLocal(new Date(defaultValues.startTime)),
+              duration: defaultValues.duration,
             }
-          : { title: '', description: '', priority: 'medium', status: 'todo' },
+          : {
+              title: '',
+              description: '',
+              priority: 'medium',
+              status: 'todo',
+              startTime: toDatetimeLocal(new Date()),
+              duration: 30,
+            },
       );
     }
   }, [open, defaultValues, reset]);
@@ -73,8 +95,9 @@ export function TaskForm({ open, onClose, onSubmit, defaultValues }: TaskFormPro
     onClose();
   };
 
-  const handleFormSubmit = (values: TaskFormValues) => {
-    onSubmit(values);
+  const handleFormSubmit = (values: TaskSchemaValues) => {
+    const isoStart = new Date(values.startTime).toISOString();
+    onSubmit({ ...values, startTime: isoStart } as TaskFormValues);
     handleClose();
   };
 
@@ -115,6 +138,37 @@ export function TaskForm({ open, onClose, onSubmit, defaultValues }: TaskFormPro
             options={STATUS_OPTIONS}
             {...register('status')}
             error={errors.status?.message}
+          />
+        </div>
+
+        {/* Timing row */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1">
+            <label
+              htmlFor="startTime"
+              className="text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              Start time <span className="ml-0.5 text-red-500">*</span>
+            </label>
+            <input
+              id="startTime"
+              type="datetime-local"
+              {...register('startTime')}
+              className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+            />
+            {errors.startTime && (
+              <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+                {errors.startTime.message}
+              </p>
+            )}
+          </div>
+
+          <Select
+            label="Duration"
+            required
+            options={DURATION_SELECT_OPTIONS}
+            {...register('duration', { valueAsNumber: true })}
+            error={errors.duration?.message}
           />
         </div>
 

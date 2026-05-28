@@ -7,9 +7,9 @@ import {
   DragOverlay,
   type DragStartEvent,
   type DragEndEvent,
+  type DragOverEvent,
 } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { arrayMove } from '@dnd-kit/sortable';
+import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTasks } from '@/hooks/useTasks';
@@ -40,23 +40,47 @@ export function TaskList() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
   const [activeId, setActiveId] = useState<string | null>(null);
+  // Track whether the current drag is over a task of a different priority
+  const [dragBlocked, setDragBlocked] = useState(false);
 
-  const { sensors } = useTaskDnd({
-    tasks: filteredTasks,
-    onReorder: reorderTasks,
-  });
+  const { sensors } = useTaskDnd({ tasks: filteredTasks, onReorder: reorderTasks });
 
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null;
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveId(event.active.id as string);
+    setDragBlocked(false);
   }, []);
+
+  const handleDragOver = useCallback(
+    (event: DragOverEvent) => {
+      const { active, over } = event;
+      if (!over) return;
+      const draggedTask = filteredTasks.find((t) => t.id === active.id);
+      const overTask = filteredTasks.find((t) => t.id === over.id);
+      if (draggedTask && overTask) {
+        setDragBlocked(draggedTask.priority !== overTask.priority);
+      }
+    },
+    [filteredTasks],
+  );
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event;
       setActiveId(null);
+      setDragBlocked(false);
       if (!over || active.id === over.id) return;
+
+      const draggedTask = filteredTasks.find((t) => t.id === active.id);
+      const overTask = filteredTasks.find((t) => t.id === over.id);
+
+      // Block cross-priority reorder
+      if (!draggedTask || !overTask || draggedTask.priority !== overTask.priority) {
+        toast.error('Tasks can only be reordered within the same priority level.');
+        return;
+      }
+
       const oldIndex = filteredTasks.findIndex((t) => t.id === active.id);
       const newIndex = filteredTasks.findIndex((t) => t.id === over.id);
       if (oldIndex !== -1 && newIndex !== -1) {
@@ -113,14 +137,18 @@ export function TaskList() {
         </Button>
       </div>
 
-      {/* DnD hint when filters active */}
       {isFiltered && filteredTasks.length > 0 && (
         <p className="text-xs text-amber-600 dark:text-amber-400">
-          Drag to reorder is disabled while filters are active.
+          Drag-to-reorder is disabled while filters are active.
         </p>
       )}
 
-      {/* Task list */}
+      {!isFiltered && filteredTasks.length > 1 && (
+        <p className="text-xs text-gray-400 dark:text-gray-600">
+          You can drag tasks within the same priority level to reorder them.
+        </p>
+      )}
+
       {filteredTasks.length === 0 ? (
         <EmptyState
           isFiltered={isFiltered}
@@ -132,6 +160,7 @@ export function TaskList() {
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
           <SortableContext
@@ -152,16 +181,16 @@ export function TaskList() {
             </div>
           </SortableContext>
 
-          {/* Ghost card while dragging */}
           <DragOverlay>
             {activeTask && (
-              <TaskCard task={activeTask} onEdit={() => {}} onDelete={() => {}} isDragDisabled />
+              <div className={dragBlocked ? 'opacity-40 grayscale' : ''}>
+                <TaskCard task={activeTask} onEdit={() => {}} onDelete={() => {}} isDragDisabled />
+              </div>
             )}
           </DragOverlay>
         </DndContext>
       )}
 
-      {/* Task form modal */}
       <TaskForm
         open={modalOpen}
         onClose={() => setModalOpen(false)}

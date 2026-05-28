@@ -3,14 +3,12 @@
 import { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Pencil, Trash2 } from 'lucide-react';
+import { GripVertical, Pencil, Trash2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { PriorityBadge, StatusBadge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { formatRelativeDate } from '@/utils/taskUtils';
+import { isOverdue, formatRemaining, formatTime, formatDuration } from '@/utils/scheduleUtils';
 import type { Task } from '@/types/task';
-
-// ─── Column header ─────────────────────────────────────────────────────────────
 
 const TH = ({ children, className }: { children: React.ReactNode; className?: string }) => (
   <th
@@ -24,8 +22,6 @@ const TH = ({ children, className }: { children: React.ReactNode; className?: st
   </th>
 );
 
-// ─── Individual sortable row ───────────────────────────────────────────────────
-
 interface RowProps {
   task: Task;
   onEdit: (task: Task) => void;
@@ -34,6 +30,7 @@ interface RowProps {
 
 function SortableTaskRow({ task, onEdit, onDelete }: RowProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const overdue = isOverdue(task);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
@@ -53,13 +50,15 @@ function SortableTaskRow({ task, onEdit, onDelete }: RowProps) {
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        'group border-b border-gray-100 bg-white transition-colors dark:border-gray-800 dark:bg-gray-900',
+        'group border-b border-gray-100 transition-colors dark:border-gray-800',
         isDragging
-          ? 'z-10 opacity-60 shadow-xl dark:shadow-black/40'
-          : 'hover:bg-gray-50 dark:hover:bg-gray-800/40',
+          ? 'z-10 opacity-60 shadow-xl'
+          : overdue
+            ? 'bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/50'
+            : 'bg-white hover:bg-gray-50 dark:bg-gray-900 dark:hover:bg-gray-800/40',
       )}
       role="row"
-      aria-label={`Task: ${task.title}`}
+      aria-label={`Task: ${task.title}${overdue ? ' (overdue)' : ''}`}
     >
       {/* Drag handle */}
       <td className="w-8 px-2 py-2.5">
@@ -68,29 +67,37 @@ function SortableTaskRow({ task, onEdit, onDelete }: RowProps) {
           {...listeners}
           aria-label="Drag to reorder"
           className={cn(
-            'cursor-grab touch-none rounded p-0.5 text-gray-300',
+            'cursor-grab touch-none rounded p-0.5',
             'opacity-0 transition-opacity active:cursor-grabbing group-hover:opacity-100',
             'focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',
-            'dark:text-gray-600',
+            overdue ? 'text-red-300 dark:text-red-800' : 'text-gray-300 dark:text-gray-600',
           )}
         >
           <GripVertical className="h-4 w-4" />
         </button>
       </td>
 
-      {/* # row number (visual only) */}
+      {/* Row number */}
       <td className="w-8 py-2.5 pr-3 text-xs text-gray-300 dark:text-gray-700" aria-hidden="true">
         {task.order + 1}
       </td>
 
       {/* Title */}
-      <td className="max-w-[260px] py-2.5 pr-4">
-        <p
-          className="truncate text-sm font-medium text-gray-900 dark:text-gray-100"
-          title={task.title}
-        >
-          {task.title}
-        </p>
+      <td className="max-w-[200px] py-2.5 pr-4">
+        <div className="flex items-center gap-1">
+          {overdue && (
+            <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" aria-hidden="true" />
+          )}
+          <p
+            className={cn(
+              'truncate text-sm font-medium',
+              overdue ? 'text-red-700 dark:text-red-400' : 'text-gray-900 dark:text-gray-100',
+            )}
+            title={task.title}
+          >
+            {task.title}
+          </p>
+        </div>
         {task.description && (
           <p
             className="mt-0.5 truncate text-xs text-gray-400 dark:text-gray-600"
@@ -111,15 +118,24 @@ function SortableTaskRow({ task, onEdit, onDelete }: RowProps) {
         <StatusBadge status={task.status} />
       </td>
 
-      {/* Created */}
-      <td className="py-2.5 pr-4">
-        <time
-          dateTime={task.createdAt}
-          className="text-xs text-gray-400 dark:text-gray-600"
-          title={new Date(task.createdAt).toLocaleString()}
-        >
-          {formatRelativeDate(task.createdAt)}
-        </time>
+      {/* Time window */}
+      <td className="whitespace-nowrap py-2.5 pr-4 text-xs text-gray-500 dark:text-gray-400">
+        {formatTime(task.startTime)} → {formatTime(task.effectiveEndTime)}
+      </td>
+
+      {/* Duration */}
+      <td className="whitespace-nowrap py-2.5 pr-4 text-xs text-gray-500 dark:text-gray-400">
+        {formatDuration(task.duration)}
+      </td>
+
+      {/* Remaining / overdue */}
+      <td
+        className={cn(
+          'whitespace-nowrap py-2.5 pr-4 text-xs font-medium',
+          overdue ? 'text-red-600 dark:text-red-400' : 'text-gray-400 dark:text-gray-600',
+        )}
+      >
+        {task.status !== 'done' ? formatRemaining(task) : '—'}
       </td>
 
       {/* Actions */}
@@ -151,8 +167,6 @@ function SortableTaskRow({ task, onEdit, onDelete }: RowProps) {
   );
 }
 
-// ─── Table shell ──────────────────────────────────────────────────────────────
-
 interface TaskTableProps {
   tasks: Task[];
   onEdit: (task: Task) => void;
@@ -170,7 +184,9 @@ export function TaskTable({ tasks, onEdit, onDelete }: TaskTableProps) {
             <TH className="pr-4">Task</TH>
             <TH className="pr-4">Priority</TH>
             <TH className="pr-4">Status</TH>
-            <TH className="pr-4">Created</TH>
+            <TH className="pr-4">Time Window</TH>
+            <TH className="pr-4">Duration</TH>
+            <TH className="pr-4">Remaining</TH>
             <TH className="pr-3 text-right">Actions</TH>
           </tr>
         </thead>

@@ -15,9 +15,11 @@ export const taskSchema = z.object({
   priority: z.enum(['low', 'medium', 'high'] as const, {
     message: 'Please select a priority',
   }),
-  status: z.enum(['todo', 'in-progress', 'done'] as const, {
+  status: z.enum(['todo', 'in-progress', 'done', 'overdue'] as const, {
     message: 'Please select a status',
   }),
+  startTime: z.string().min(1, 'Start time is required'),
+  duration: z.number().min(1, 'Please select a duration'),
 });
 
 export type TaskSchemaValues = z.infer<typeof taskSchema>;

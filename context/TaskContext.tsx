@@ -12,12 +12,12 @@ import {
 import { taskReducer, type TaskAction } from '@/lib/taskReducer';
 import type { TasksState, Task, TaskFormValues, FilterState, SortState } from '@/types/task';
 
-const STORAGE_KEY = 'taskflow_tasks';
+const STORAGE_KEY = 'AashTrack_tasks';
 
 const defaultState: TasksState = {
   tasks: [],
   filter: { status: '', priority: '' },
-  sort: { sortBy: 'createdAt', sortOrder: 'desc' },
+  sort: { sortBy: 'startTime', sortOrder: 'asc' },
 };
 
 function loadFromStorage(): TasksState {
@@ -58,11 +58,7 @@ interface TaskContextValue {
 const TaskContext = createContext<TaskContextValue | null>(null);
 
 export function TaskProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(taskReducer, defaultState, () => {
-    // SSR-safe: start with defaults, hydrate client-side
-    return defaultState;
-  });
-
+  const [state, dispatch] = useReducer(taskReducer, defaultState, () => defaultState);
   const hydrated = useRef(false);
 
   // Hydrate from localStorage once on client mount
@@ -73,43 +69,45 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'HYDRATE', payload: stored });
   }, []);
 
-  // Persist on every state change (after hydration)
+  // Persist on every state change
   useEffect(() => {
     if (!hydrated.current) return;
     saveToStorage(state);
   }, [state]);
 
+  // Refresh overdue status every 60 seconds
+  useEffect(() => {
+    const id = setInterval(() => {
+      dispatch({ type: 'REFRESH_OVERDUE' });
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const addTask = useCallback(
     (values: TaskFormValues) => dispatch({ type: 'ADD_TASK', payload: values }),
     [],
   );
-
   const updateTask = useCallback(
     (id: string, values: TaskFormValues) =>
       dispatch({ type: 'UPDATE_TASK', payload: { id, ...values } }),
     [],
   );
-
   const deleteTask = useCallback(
     (id: string) => dispatch({ type: 'DELETE_TASK', payload: id }),
     [],
   );
-
   const reorderTasks = useCallback(
     (tasks: Task[]) => dispatch({ type: 'REORDER_TASKS', payload: tasks }),
     [],
   );
-
   const setFilter = useCallback(
     (filter: Partial<FilterState>) => dispatch({ type: 'SET_FILTER', payload: filter }),
     [],
   );
-
   const setSort = useCallback(
     (sort: Partial<SortState>) => dispatch({ type: 'SET_SORT', payload: sort }),
     [],
   );
-
   const clearFilters = useCallback(() => dispatch({ type: 'CLEAR_FILTERS' }), []);
 
   return (

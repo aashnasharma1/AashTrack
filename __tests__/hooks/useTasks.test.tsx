@@ -3,8 +3,8 @@ import { renderHook, act } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { TaskProvider } from '@/context/TaskContext';
 import { useTasks } from '@/hooks/useTasks';
+import type { TaskFormValues } from '@/types/task';
 
-// Suppress localStorage errors in jsdom
 const localStorageMock = (() => {
   let store: Record<string, string> = {};
   return {
@@ -25,6 +25,16 @@ Object.defineProperty(window, 'localStorage', { value: localStorageMock });
 
 const wrapper = ({ children }: { children: ReactNode }) => <TaskProvider>{children}</TaskProvider>;
 
+const task = (overrides: Partial<TaskFormValues> = {}): TaskFormValues => ({
+  title: 'Test',
+  description: '',
+  priority: 'medium',
+  status: 'todo',
+  startTime: new Date().toISOString(),
+  duration: 30,
+  ...overrides,
+});
+
 describe('useTasks', () => {
   beforeEach(() => {
     localStorageMock.clear();
@@ -40,36 +50,25 @@ describe('useTasks', () => {
   it('adds a task', () => {
     const { result } = renderHook(() => useTasks(), { wrapper });
     act(() => {
-      result.current.addTask({
-        title: 'Test task',
-        description: 'A description',
-        priority: 'high',
-        status: 'todo',
-      });
+      result.current.addTask(task({ title: 'Test task', priority: 'high' }));
     });
     expect(result.current.tasks).toHaveLength(1);
     expect(result.current.tasks[0].title).toBe('Test task');
     expect(result.current.tasks[0].priority).toBe('high');
+    expect(result.current.tasks[0].effectiveEndTime).toBeDefined();
   });
 
   it('updates a task', () => {
     const { result } = renderHook(() => useTasks(), { wrapper });
     act(() => {
-      result.current.addTask({
-        title: 'Original',
-        description: '',
-        priority: 'low',
-        status: 'todo',
-      });
+      result.current.addTask(task({ title: 'Original', priority: 'low' }));
     });
     const id = result.current.tasks[0].id;
     act(() => {
-      result.current.updateTask(id, {
-        title: 'Updated',
-        description: 'new',
-        priority: 'high',
-        status: 'done',
-      });
+      result.current.updateTask(
+        id,
+        task({ title: 'Updated', description: 'new', priority: 'high', status: 'done' }),
+      );
     });
     expect(result.current.tasks[0].title).toBe('Updated');
     expect(result.current.tasks[0].status).toBe('done');
@@ -78,12 +77,7 @@ describe('useTasks', () => {
   it('deletes a task', () => {
     const { result } = renderHook(() => useTasks(), { wrapper });
     act(() => {
-      result.current.addTask({
-        title: 'Delete me',
-        description: '',
-        priority: 'low',
-        status: 'todo',
-      });
+      result.current.addTask(task({ title: 'Delete me' }));
     });
     const id = result.current.tasks[0].id;
     act(() => {
@@ -95,18 +89,8 @@ describe('useTasks', () => {
   it('filters tasks by status', () => {
     const { result } = renderHook(() => useTasks(), { wrapper });
     act(() => {
-      result.current.addTask({
-        title: 'Todo task',
-        description: '',
-        priority: 'high',
-        status: 'todo',
-      });
-      result.current.addTask({
-        title: 'Done task',
-        description: '',
-        priority: 'low',
-        status: 'done',
-      });
+      result.current.addTask(task({ title: 'Todo task', priority: 'high', status: 'todo' }));
+      result.current.addTask(task({ title: 'Done task', priority: 'low', status: 'done' }));
     });
     act(() => {
       result.current.setFilter({ status: 'todo' });
@@ -119,13 +103,8 @@ describe('useTasks', () => {
   it('clears filters', () => {
     const { result } = renderHook(() => useTasks(), { wrapper });
     act(() => {
-      result.current.addTask({
-        title: 'Task 1',
-        description: '',
-        priority: 'high',
-        status: 'todo',
-      });
-      result.current.addTask({ title: 'Task 2', description: '', priority: 'low', status: 'done' });
+      result.current.addTask(task({ title: 'Task 1', priority: 'high', status: 'todo' }));
+      result.current.addTask(task({ title: 'Task 2', priority: 'low', status: 'done' }));
       result.current.setFilter({ status: 'todo' });
     });
     expect(result.current.filteredTasks).toHaveLength(1);
@@ -139,8 +118,8 @@ describe('useTasks', () => {
   it('reorders tasks', () => {
     const { result } = renderHook(() => useTasks(), { wrapper });
     act(() => {
-      result.current.addTask({ title: 'First', description: '', priority: 'low', status: 'todo' });
-      result.current.addTask({ title: 'Second', description: '', priority: 'low', status: 'todo' });
+      result.current.addTask(task({ title: 'First', priority: 'low' }));
+      result.current.addTask(task({ title: 'Second', priority: 'low' }));
     });
     const reversed = [...result.current.tasks].reverse();
     act(() => {

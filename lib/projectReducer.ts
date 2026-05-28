@@ -5,7 +5,9 @@ import type {
   ModuleFormValues,
   Task,
   TaskFormValues,
+  DurationMinutes,
 } from '@/types/task';
+import { buildTaskTiming } from '@/utils/scheduleUtils';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -140,6 +142,8 @@ export function projectReducer(state: ProjectsState, action: ProjectAction): Pro
     // ── tasks within a module ─────────────────────────────────────────────────
     case 'MODULE_TASK_ADD': {
       const siblings = state.moduleTasks.filter((t) => t.moduleId === action.payload.moduleId);
+      const dur = action.payload.duration as DurationMinutes;
+      const timing = buildTaskTiming(action.payload.startTime, dur);
       const task: Task = {
         id: `mtask_${uid()}`,
         moduleId: action.payload.moduleId,
@@ -149,11 +153,15 @@ export function projectReducer(state: ProjectsState, action: ProjectAction): Pro
         status: action.payload.status,
         createdAt: new Date().toISOString(),
         order: siblings.length,
+        duration: dur,
+        ...timing,
       };
       return { ...state, moduleTasks: [...state.moduleTasks, task] };
     }
 
-    case 'MODULE_TASK_UPDATE':
+    case 'MODULE_TASK_UPDATE': {
+      const updDur = action.payload.duration as DurationMinutes;
+      const updTiming = buildTaskTiming(action.payload.startTime, updDur);
       return {
         ...state,
         moduleTasks: state.moduleTasks.map((t) =>
@@ -164,10 +172,13 @@ export function projectReducer(state: ProjectsState, action: ProjectAction): Pro
                 description: action.payload.description.trim(),
                 priority: action.payload.priority,
                 status: action.payload.status,
+                duration: updDur,
+                ...updTiming,
               }
             : t,
         ),
       };
+    }
 
     case 'MODULE_TASK_DELETE':
       return {

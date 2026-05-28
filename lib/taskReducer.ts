@@ -1,5 +1,13 @@
-import type { Task, TaskFormValues, FilterState, SortState, TasksState } from '@/types/task';
+import type {
+  Task,
+  TaskFormValues,
+  FilterState,
+  SortState,
+  TasksState,
+  DurationMinutes,
+} from '@/types/task';
 import { generateId } from '@/utils/taskUtils';
+import { buildTaskTiming, applyPriorityInterrupt, deriveStatus } from '@/utils/scheduleUtils';
 
 export type TaskAction =
   | { type: 'HYDRATE'; payload: TasksState }
@@ -9,12 +17,13 @@ export type TaskAction =
   | { type: 'REORDER_TASKS'; payload: Task[] }
   | { type: 'SET_FILTER'; payload: Partial<FilterState> }
   | { type: 'SET_SORT'; payload: Partial<SortState> }
-  | { type: 'CLEAR_FILTERS' };
+  | { type: 'CLEAR_FILTERS' }
+  | { type: 'REFRESH_OVERDUE' };
 
 export const initialState: TasksState = {
   tasks: [],
   filter: { status: '', priority: '' },
-  sort: { sortBy: 'createdAt', sortOrder: 'desc' },
+  sort: { sortBy: 'startTime', sortOrder: 'asc' },
 };
 
 export function taskReducer(state: TasksState, action: TaskAction): TasksState {
@@ -27,6 +36,8 @@ export function taskReducer(state: TasksState, action: TaskAction): TasksState {
       };
 
     case 'ADD_TASK': {
+      const duration = action.payload.duration as DurationMinutes;
+      const timing = buildTaskTiming(action.payload.startTime, duration);
       const newTask: Task = {
         id: generateId(),
         title: action.payload.title.trim(),
@@ -35,25 +46,34 @@ export function taskReducer(state: TasksState, action: TaskAction): TasksState {
         status: action.payload.status,
         createdAt: new Date().toISOString(),
         order: state.tasks.length,
+        duration,
+        ...timing,
       };
-      return { ...state, tasks: [...state.tasks, newTask] };
+
+      // Apply priority interrupt: may update existing tasks' end times
+      const updatedExisting = applyPriorityInterrupt(state.tasks, newTask);
+
+      return { ...state, tasks: [...updatedExisting, newTask] };
     }
 
     case 'UPDATE_TASK': {
       const { id, ...values } = action.payload;
+      const updDuration = values.duration as DurationMinutes;
       return {
         ...state,
-        tasks: state.tasks.map((t) =>
-          t.id === id
-            ? {
-                ...t,
-                title: values.title.trim(),
-                description: values.description.trim(),
-                priority: values.priority,
-                status: values.status,
-              }
-            : t,
-        ),
+        tasks: state.tasks.map((t) => {
+          if (t.id !== id) return t;
+          const timing = buildTaskTiming(values.startTime, updDuration);
+          return {
+            ...t,
+            title: values.title.trim(),
+            description: values.description.trim(),
+            priority: values.priority,
+            status: values.status,
+            duration: updDuration,
+            ...timing,
+          };
+        }),
       };
     }
 
@@ -74,6 +94,16 @@ export function taskReducer(state: TasksState, action: TaskAction): TasksState {
 
     case 'CLEAR_FILTERS':
       return { ...state, filter: { status: '', priority: '' } };
+
+    // Called periodically to flip status to 'overdue' where applicable
+    case 'REFRESH_OVERDUE':
+      return {
+        ...state,
+        tasks: state.tasks.map((t) => ({
+          ...t,
+          status: deriveStatus(t),
+        })),
+      };
 
     default:
       return state;

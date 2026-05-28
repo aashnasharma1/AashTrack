@@ -8,12 +8,14 @@ export const STATUS = {
   todo: 'todo',
   'in-progress': 'in-progress',
   done: 'done',
+  overdue: 'overdue',
 } as const;
 
 export const SORT_BY = {
   createdAt: 'createdAt',
   priority: 'priority',
   title: 'title',
+  startTime: 'startTime',
 } as const;
 
 export const SORT_ORDER = {
@@ -26,6 +28,24 @@ export type Status = keyof typeof STATUS;
 export type SortBy = keyof typeof SORT_BY;
 export type SortOrder = keyof typeof SORT_ORDER;
 
+// Duration options in minutes
+export const DURATION_OPTIONS = [15, 30, 45, 60, 120, 180, 240, 300, 360, 420, 480] as const;
+export type DurationMinutes = (typeof DURATION_OPTIONS)[number];
+
+export const DURATION_LABELS: Record<DurationMinutes, string> = {
+  15: '15 min',
+  30: '30 min',
+  45: '45 min',
+  60: '1 hr',
+  120: '2 hr',
+  180: '3 hr',
+  240: '4 hr',
+  300: '5 hr',
+  360: '6 hr',
+  420: '7 hr',
+  480: '8 hr',
+};
+
 export interface Task {
   id: string;
   title: string;
@@ -34,6 +54,20 @@ export interface Task {
   status: Status;
   createdAt: string;
   order: number;
+  /** ISO string — defaults to createdAt, user can override */
+  startTime: string;
+  /** Duration in minutes */
+  duration: DurationMinutes;
+  /**
+   * Computed end time ISO string.
+   * Updated when a higher-priority task interrupts this one.
+   */
+  effectiveEndTime: string;
+  /**
+   * Remaining minutes when this task was interrupted by a higher-priority task.
+   * null means task was never interrupted.
+   */
+  remainingMinutes: number | null;
   /** Present when task belongs to a module; absent for top-level inbox tasks */
   moduleId?: string;
 }
@@ -43,6 +77,9 @@ export interface TaskFormValues {
   description: string;
   priority: Priority;
   status: Status;
+  startTime: string;
+  /** Raw number from the form select — validated to be a DurationMinutes value */
+  duration: number;
 }
 
 export interface FilterState {
@@ -155,4 +192,5 @@ export const STATUS_LABELS: Record<Status, string> = {
   todo: 'To Do',
   'in-progress': 'In Progress',
   done: 'Done',
+  overdue: 'Overdue',
 };

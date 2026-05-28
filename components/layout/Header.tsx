@@ -10,7 +10,7 @@ function usePageTitle(): string {
   if (pathname === '/projects') return 'Projects';
   if (/^\/projects\/[^/]+$/.test(pathname)) return 'Project';
   if (/^\/projects\/[^/]+\/modules\/[^/]+$/.test(pathname)) return 'Module';
-  return 'TaskFlow';
+  return 'AashTrack';
 }
 
 export function Header() {

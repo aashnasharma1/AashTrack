@@ -7,6 +7,8 @@ describe('taskSchema', () => {
     description: 'Users cannot log in with Google SSO',
     priority: 'high' as const,
     status: 'todo' as const,
+    startTime: new Date().toISOString(),
+    duration: 30,
   };
 
   it('accepts a fully valid task', () => {
@@ -58,6 +60,16 @@ describe('taskSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('rejects missing startTime', () => {
+    const result = taskSchema.safeParse({ ...validInput, startTime: '' });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects duration of 0', () => {
+    const result = taskSchema.safeParse({ ...validInput, duration: 0 });
+    expect(result.success).toBe(false);
+  });
+
   it('accepts all valid priority values', () => {
     (['low', 'medium', 'high'] as const).forEach((priority) => {
       const result = taskSchema.safeParse({ ...validInput, priority });
@@ -66,7 +78,7 @@ describe('taskSchema', () => {
   });
 
   it('accepts all valid status values', () => {
-    (['todo', 'in-progress', 'done'] as const).forEach((status) => {
+    (['todo', 'in-progress', 'done', 'overdue'] as const).forEach((status) => {
       const result = taskSchema.safeParse({ ...validInput, status });
       expect(result.success).toBe(true);
     });

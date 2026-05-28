@@ -24,7 +24,7 @@ import type {
   TaskFormValues,
 } from '@/types/task';
 
-const STORAGE_KEY = 'taskflow_projects';
+const STORAGE_KEY = 'AashTrack_projects';
 
 function load(): ProjectsState {
   try {
