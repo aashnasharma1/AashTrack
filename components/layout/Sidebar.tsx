@@ -10,7 +10,6 @@ import {
   LayoutGrid,
   Layers,
   Plus,
-  CheckSquare,
   ChevronsLeft,
   ChevronsRight,
 } from 'lucide-react';
@@ -49,17 +48,6 @@ export function Sidebar() {
     >
       {/* Brand + collapse toggle */}
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 px-3 dark:border-gray-800">
-        {!isCollapsed && (
-          <div className="flex items-center gap-2">
-            <CheckSquare
-              className="h-5 w-5 shrink-0 text-indigo-600 dark:text-indigo-400"
-              aria-hidden="true"
-            />
-            <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              AashTrack
-            </span>
-          </div>
-        )}
         <button
           onClick={() => setIsCollapsed((v) => !v)}
           aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
