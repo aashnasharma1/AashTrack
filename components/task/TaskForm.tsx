@@ -1,36 +1,85 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Flag, Layers, ChevronDown } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
-import { Input } from '@/components/ui/Input';
-import { Textarea } from '@/components/ui/Textarea';
-import { Select } from '@/components/ui/Select';
-import { Button } from '@/components/ui/Button';
-import { taskSchema, TITLE_MAX, DESCRIPTION_MAX, COLLECTION_MAX } from '@/lib/validation';
+import { TimeRangePicker } from '@/components/ui/TimePicker';
+import { useTaskContext } from '@/context/TaskContext';
+import { taskSchema, TITLE_MAX, DESCRIPTION_MAX } from '@/lib/validation';
 import type { TaskSchemaValues } from '@/lib/validation';
-import type { Task, TaskFormValues } from '@/types/task';
+import type { Collection, Task, TaskFormValues, Priority } from '@/types/task';
+import { cn } from '@/lib/cn';
 
-const PRIORITY_OPTIONS = [
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
+const PRIORITY_OPTS: { value: Priority; label: string; flagCls: string }[] = [
+  { value: 'high', label: 'High', flagCls: 'text-red-500' },
+  { value: 'medium', label: 'Medium', flagCls: 'text-amber-400' },
+  { value: 'low', label: 'Low', flagCls: 'text-emerald-500' },
 ];
 
-const STATUS_OPTIONS = [
-  { value: 'todo', label: 'To Do' },
-  { value: 'in-progress', label: 'In Progress' },
-  { value: 'done', label: 'Done' },
-];
+// ── Field chip dropdown ───────────────────────────────────────────────────────
+
+function FieldChip({
+  trigger,
+  highlighted,
+  renderMenu,
+}: {
+  trigger: React.ReactNode;
+  highlighted?: boolean;
+  renderMenu: (close: () => void) => React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const close = () => setOpen(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const down = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) close();
+    };
+    document.addEventListener('mousedown', down);
+    return () => document.removeEventListener('mousedown', down);
+  }, [open]);
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          'flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
+          highlighted
+            ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300'
+            : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700',
+        )}
+      >
+        {trigger}
+        <ChevronDown
+          className={cn(
+            'h-3 w-3 shrink-0 text-gray-400 transition-transform',
+            open && 'rotate-180',
+          )}
+        />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-[60] mt-1.5 min-w-[160px] overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+          {renderMenu(close)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main form ─────────────────────────────────────────────────────────────────
 
 interface TaskFormProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (values: TaskFormValues) => void;
   defaultValues?: Task;
-  /** Existing collections for autocomplete */
-  collections?: string[];
+  collections?: Collection[];
+  lockedCollection?: string;
 }
 
 export function TaskForm({
@@ -39,7 +88,11 @@ export function TaskForm({
   onSubmit,
   defaultValues,
   collections = [],
+  lockedCollection,
 }: TaskFormProps) {
+  const {
+    state: { statusGroups },
+  } = useTaskContext();
   const isEditing = !!defaultValues;
 
   const {
@@ -47,6 +100,7 @@ export function TaskForm({
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<TaskSchemaValues>({
     resolver: zodResolver(taskSchema),
@@ -55,7 +109,9 @@ export function TaskForm({
       description: '',
       priority: 'medium',
       status: 'todo',
-      collection: '',
+      collection: lockedCollection ?? '',
+      startTime: '',
+      endTime: '',
     },
   });
 
@@ -69,15 +125,27 @@ export function TaskForm({
               priority: defaultValues.priority,
               status: defaultValues.status,
               collection: defaultValues.collection,
+              startTime: defaultValues.startTime ?? '',
+              endTime: defaultValues.endTime ?? '',
             }
-          : { title: '', description: '', priority: 'medium', status: 'todo', collection: '' },
+          : {
+              title: '',
+              description: '',
+              priority: 'medium',
+              status: 'todo',
+              collection: lockedCollection ?? '',
+              startTime: '',
+              endTime: '',
+            },
       );
     }
-  }, [open, defaultValues, reset]);
+  }, [open, defaultValues, lockedCollection, reset]);
 
-  const titleValue = watch('title');
-  const descValue = watch('description');
+  const statusValue = watch('status');
+  const priorityValue = watch('priority');
   const collectionValue = watch('collection');
+  const startTimeValue = watch('startTime');
+  const endTimeValue = watch('endTime');
 
   const handleClose = () => {
     reset();
@@ -88,97 +156,201 @@ export function TaskForm({
     handleClose();
   };
 
+  const statusGroup = statusGroups.find((g) => g.id === statusValue) ?? statusGroups[0];
+  const priorityCfg = PRIORITY_OPTS.find((o) => o.value === priorityValue) ?? PRIORITY_OPTS[1];
+  const collectionName = collections.find((c) => c.slug === collectionValue)?.name;
+
   return (
-    <Modal open={open} onClose={handleClose} title={isEditing ? 'Edit Task' : 'New Task'}>
-      <form onSubmit={handleSubmit(handleFormSubmit)} noValidate className="flex flex-col gap-4">
-        <Input
-          label="Title"
-          required
-          placeholder="What needs to be done?"
-          {...register('title')}
-          error={errors.title?.message}
-          charCount={{ current: titleValue?.length ?? 0, max: TITLE_MAX }}
-          autoComplete="off"
-        />
-
-        <Textarea
-          label="Description"
-          placeholder="Add details (optional)"
-          {...register('description')}
-          error={errors.description?.message}
-          charCount={{ current: descValue?.length ?? 0, max: DESCRIPTION_MAX }}
-        />
-
-        {/* Collection — required, with autocomplete from existing collections */}
-        <div className="flex flex-col gap-1">
-          <label
-            htmlFor="collection"
-            className="text-sm font-medium text-gray-700 dark:text-gray-300"
-          >
-            Collection{' '}
-            <span className="ml-0.5 text-red-500" aria-label="required">
-              *
-            </span>
-          </label>
+    <Modal open={open} onClose={handleClose}>
+      <form onSubmit={handleSubmit(handleFormSubmit)} noValidate>
+        {/* Title input — prominent, no label */}
+        <div className="mb-3 pr-8">
           <input
-            id="collection"
-            list="collection-options"
-            placeholder="e.g. Work, Personal, Shopping"
+            {...register('title')}
+            placeholder="Task name"
+            maxLength={TITLE_MAX}
             autoComplete="off"
-            {...register('collection')}
-            aria-invalid={!!errors.collection}
-            aria-describedby={errors.collection ? 'collection-error' : undefined}
-            className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+            className="w-full bg-transparent text-base font-semibold text-gray-900 outline-none placeholder:text-gray-300 dark:text-gray-100 dark:placeholder:text-gray-600"
           />
-          <datalist id="collection-options">
-            {collections.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
-          <div className="flex items-center justify-between">
-            {errors.collection ? (
-              <p
-                id="collection-error"
-                role="alert"
-                className="text-xs text-red-600 dark:text-red-400"
-              >
-                {errors.collection.message}
-              </p>
-            ) : (
-              <span />
+          {errors.title && <p className="mt-1 text-xs text-red-500">{errors.title.message}</p>}
+        </div>
+
+        {/* Description — secondary, borderless */}
+        <div className="mb-5">
+          <textarea
+            {...register('description')}
+            placeholder="Add description (optional)"
+            maxLength={DESCRIPTION_MAX}
+            rows={2}
+            className="w-full resize-none bg-transparent text-sm text-gray-500 outline-none placeholder:text-gray-300 dark:text-gray-400 dark:placeholder:text-gray-600"
+          />
+        </div>
+
+        <div className="-mx-5 border-t border-gray-100 dark:border-gray-800" />
+
+        {/* Field chips row */}
+        <div className="flex flex-wrap items-center gap-2 py-3">
+          {/* Status */}
+          <FieldChip
+            trigger={
+              <>
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: statusGroup?.color }}
+                  aria-hidden="true"
+                />
+                {statusGroup?.label ?? statusValue}
+              </>
+            }
+            renderMenu={(close) => (
+              <>
+                {statusGroups.map((grp) => (
+                  <button
+                    key={grp.id}
+                    type="button"
+                    onClick={() => {
+                      setValue('status', grp.id, { shouldDirty: true });
+                      close();
+                    }}
+                    className={cn(
+                      'flex w-full items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-gray-50 dark:hover:bg-gray-800',
+                      statusValue === grp.id
+                        ? 'font-semibold text-gray-900 dark:text-gray-100'
+                        : 'text-gray-600 dark:text-gray-300',
+                    )}
+                  >
+                    <span
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: grp.color }}
+                      aria-hidden="true"
+                    />
+                    {grp.label}
+                    {statusValue === grp.id && <span className="ml-auto text-blue-500">✓</span>}
+                  </button>
+                ))}
+              </>
             )}
-            <p
-              className={`ml-auto text-xs ${(collectionValue?.length ?? 0) > COLLECTION_MAX * 0.9 ? 'text-amber-600' : 'text-gray-400'}`}
-            >
-              {collectionValue?.length ?? 0}/{COLLECTION_MAX}
-            </p>
+          />
+
+          {/* Priority */}
+          <FieldChip
+            trigger={
+              <>
+                <Flag
+                  className={cn('h-3.5 w-3.5 shrink-0', priorityCfg.flagCls)}
+                  aria-hidden="true"
+                />
+                {priorityCfg.label}
+              </>
+            }
+            renderMenu={(close) => (
+              <>
+                {PRIORITY_OPTS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      setValue('priority', opt.value, { shouldDirty: true });
+                      close();
+                    }}
+                    className={cn(
+                      'flex w-full items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-gray-50 dark:hover:bg-gray-800',
+                      priorityValue === opt.value
+                        ? 'font-semibold text-gray-900 dark:text-gray-100'
+                        : 'text-gray-600 dark:text-gray-300',
+                    )}
+                  >
+                    <Flag className={cn('h-3.5 w-3.5 shrink-0', opt.flagCls)} aria-hidden="true" />
+                    {opt.label}
+                    {priorityValue === opt.value && (
+                      <span className="ml-auto text-blue-500">✓</span>
+                    )}
+                  </button>
+                ))}
+              </>
+            )}
+          />
+
+          {/* Collection — hidden when locked */}
+          {lockedCollection ? (
+            <input type="hidden" {...register('collection')} />
+          ) : (
+            <FieldChip
+              highlighted={!!collectionValue}
+              trigger={
+                <>
+                  <Layers className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  {collectionName ?? 'Collection'}
+                </>
+              }
+              renderMenu={(close) => (
+                <>
+                  {collections.length === 0 ? (
+                    <p className="px-3 py-2 text-xs text-gray-400">No collections yet</p>
+                  ) : (
+                    collections.map((c) => (
+                      <button
+                        key={c.slug}
+                        type="button"
+                        onClick={() => {
+                          setValue('collection', c.slug, { shouldDirty: true });
+                          close();
+                        }}
+                        className={cn(
+                          'flex w-full items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-gray-50 dark:hover:bg-gray-800',
+                          collectionValue === c.slug
+                            ? 'font-semibold text-blue-600 dark:text-blue-400'
+                            : 'text-gray-600 dark:text-gray-300',
+                        )}
+                      >
+                        {c.name}
+                        {collectionValue === c.slug && (
+                          <span className="ml-auto text-blue-500">✓</span>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </>
+              )}
+            />
+          )}
+
+          {/* Schedule — TimeRangePicker wrapping in chip shell */}
+          <div className="inline-flex items-center rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+            <TimeRangePicker
+              startTime={startTimeValue || undefined}
+              endTime={endTimeValue || undefined}
+              onChange={(s, e) => {
+                setValue('startTime', s ?? '');
+                setValue('endTime', e ?? '');
+              }}
+            />
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Select
-            label="Priority"
-            required
-            options={PRIORITY_OPTIONS}
-            {...register('priority')}
-            error={errors.priority?.message}
-          />
-          <Select
-            label="Status"
-            required
-            options={STATUS_OPTIONS}
-            {...register('status')}
-            error={errors.status?.message}
-          />
-        </div>
+        {/* Collection error */}
+        {errors.collection && (
+          <p className="-mt-1 mb-2 text-xs text-red-500">{errors.collection.message}</p>
+        )}
 
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="secondary" onClick={handleClose}>
+        <div className="-mx-5 border-t border-gray-100 dark:border-gray-800" />
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 pt-4">
+          <button
+            type="button"
+            onClick={handleClose}
+            className="rounded-lg px-3 py-2 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+          >
             Cancel
-          </Button>
-          <Button type="submit" loading={isSubmitting}>
-            {isEditing ? 'Save Changes' : 'Create Task'}
-          </Button>
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+          >
+            {isSubmitting ? '…' : isEditing ? 'Save Changes' : 'Create Task'}
+          </button>
         </div>
       </form>
     </Modal>

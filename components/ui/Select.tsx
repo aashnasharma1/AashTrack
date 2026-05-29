@@ -39,7 +39,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           aria-describedby={error ? `${selectId}-error` : undefined}
           className={cn(
             'h-9 w-full rounded-lg border bg-white px-3 text-sm text-gray-900 shadow-sm',
-            'focus:outline-none focus:ring-2 focus:ring-indigo-500',
+            'focus:outline-none focus:ring-2 focus:ring-blue-500',
             'transition-colors dark:bg-gray-900 dark:text-gray-100',
             'appearance-none bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2YjcyODAiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cG9seWxpbmUgcG9pbnRzPSI2IDkgMTIgMTUgMTggOSI+PC9wb2x5bGluZT48L3N2Zz4=")] bg-[right_8px_center] bg-no-repeat pr-8',
             error

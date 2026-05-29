@@ -3,15 +3,17 @@
 import { useMemo } from 'react';
 import { useTaskContext } from '@/context/TaskContext';
 import { filterAndSortTasks, hasActiveFilters } from '@/utils/taskUtils';
-import type { Task, TaskFormValues, FilterState, SortState } from '@/types/task';
+import type { Collection, Task, TaskFormValues, FilterState, SortState } from '@/types/task';
 
 export interface UseTasksReturn {
+  collections: Collection[];
   tasks: Task[];
   filteredTasks: Task[];
-  collections: string[];
   filter: FilterState;
   sort: SortState;
   isFiltered: boolean;
+  addCollection: (name: string) => void;
+  deleteCollection: (id: string) => void;
   addTask: (v: TaskFormValues) => void;
   updateTask: (id: string, v: TaskFormValues) => void;
   deleteTask: (id: string) => void;
@@ -22,10 +24,10 @@ export interface UseTasksReturn {
 }
 
 export function useTasks(): UseTasksReturn {
-  const ctx = useTaskContext();
   const {
     state,
-    collections,
+    addCollection,
+    deleteCollection,
     addTask,
     updateTask,
     deleteTask,
@@ -33,7 +35,7 @@ export function useTasks(): UseTasksReturn {
     setFilter,
     setSort,
     clearFilters,
-  } = ctx;
+  } = useTaskContext();
 
   const filteredTasks = useMemo(
     () => filterAndSortTasks(state.tasks, state.filter, state.sort),
@@ -43,12 +45,14 @@ export function useTasks(): UseTasksReturn {
   const isFiltered = useMemo(() => hasActiveFilters(state.filter), [state.filter]);
 
   return {
+    collections: state.collections,
     tasks: state.tasks,
     filteredTasks,
-    collections,
     filter: state.filter,
     sort: state.sort,
     isFiltered,
+    addCollection,
+    deleteCollection,
     addTask,
     updateTask,
     deleteTask,

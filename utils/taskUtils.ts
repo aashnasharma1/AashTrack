@@ -22,7 +22,8 @@ export function sortTasks(tasks: Task[], sort: SortState): Task[] {
     if (sort.sortBy === 'priority')
       return (PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]) * dir;
     if (sort.sortBy === 'title') return a.title.localeCompare(b.title) * dir;
-    return (a.order - b.order) * dir;
+    // 'manual' and any future fallback: respect the persisted order field (always asc)
+    return a.order - b.order;
   });
 }
 

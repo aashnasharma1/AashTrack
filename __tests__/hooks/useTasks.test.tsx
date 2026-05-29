@@ -53,14 +53,16 @@ describe('useTasks', () => {
     expect(result.current.tasks[0].collection).toBe('Shopping');
   });
 
-  it('collections derived from tasks', () => {
+  it('collections are Collection objects added via addCollection', () => {
     const { result } = renderHook(() => useTasks(), { wrapper });
     act(() => {
-      result.current.addTask(t({ collection: 'Work' }));
-      result.current.addTask(t({ collection: 'Personal' }));
-      result.current.addTask(t({ collection: 'Work' }));
+      result.current.addCollection('Work');
+      result.current.addCollection('Personal');
     });
-    expect(result.current.collections).toEqual(['Personal', 'Work']);
+    expect(result.current.collections).toHaveLength(2);
+    expect(result.current.collections[0].name).toBe('Work');
+    expect(result.current.collections[1].name).toBe('Personal');
+    expect(result.current.collections[0].slug).toBe('work');
   });
 
   it('filters by collection', () => {

@@ -1,31 +1,195 @@
+import { useState, useRef, useEffect, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
+import { Flag } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import type { Priority, Status } from '@/types/task';
-import { PRIORITY_LABELS, STATUS_LABELS } from '@/types/task';
+import type { Priority, StatusGroup } from '@/types/task';
+import { PRIORITY_LABELS } from '@/types/task';
 
-const priorityStyles: Record<Priority, string> = {
-  low: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800',
-  medium:
-    'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800',
-  high: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800',
+// ── Priority flag ─────────────────────────────────────────────────────────────
+
+const FLAG_COLORS: Record<Priority, string> = {
+  high: 'text-red-500 fill-red-500',
+  medium: 'text-amber-400 fill-amber-400',
+  low: 'text-gray-300 fill-gray-300 dark:text-gray-500 dark:fill-gray-500',
 };
 
-const statusStyles: Record<Status, string> = {
-  todo: 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700',
-  'in-progress':
-    'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800',
-  done: 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950 dark:text-violet-300 dark:border-violet-800',
-};
-
-const base = 'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium';
-
-export function PriorityBadge({ priority, className }: { priority: Priority; className?: string }) {
+export function PriorityFlag({ priority, className }: { priority: Priority; className?: string }) {
+  const label = `${PRIORITY_LABELS[priority]} priority`;
   return (
-    <span className={cn(base, priorityStyles[priority], className)}>
-      {PRIORITY_LABELS[priority]}
+    <span title={label} aria-label={label} className="inline-flex shrink-0">
+      <Flag
+        className={cn('h-3.5 w-3.5', FLAG_COLORS[priority], className)}
+        strokeWidth={1.5}
+        aria-hidden="true"
+      />
     </span>
   );
 }
 
-export function StatusBadge({ status, className }: { status: Status; className?: string }) {
-  return <span className={cn(base, statusStyles[status], className)}>{STATUS_LABELS[status]}</span>;
+export { PriorityFlag as PriorityBadge };
+
+// ── Priority selector (inline popover) ───────────────────────────────────────
+
+const PRIORITIES: Priority[] = ['high', 'medium', 'low'];
+
+interface PrioritySelectorProps {
+  priority: Priority;
+  onChange: (p: Priority) => void;
+  className?: string;
+}
+
+export function PrioritySelector({ priority, onChange, className }: PrioritySelectorProps) {
+  const [open, setOpen] = useState(false);
+  const [popStyle, setPopStyle] = useState<CSSProperties>({});
+  const trigRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+
+  const openDropdown = () => {
+    if (!trigRef.current) return;
+    const rect = trigRef.current.getBoundingClientRect();
+    const dropH = 116;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const above = spaceBelow < dropH && rect.top > dropH;
+    setPopStyle({
+      position: 'fixed',
+      zIndex: 9999,
+      minWidth: 124,
+      ...(above
+        ? { bottom: window.innerHeight - rect.top + 4, left: rect.left }
+        : { top: rect.bottom + 4, left: rect.left }),
+    });
+    setOpen(true);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (popRef.current?.contains(e.target as Node)) return;
+      if (trigRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    const onScroll = () => setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [open]);
+
+  return (
+    <div className={cn('inline-flex', className)}>
+      <button
+        ref={trigRef}
+        type="button"
+        onClick={() => (open ? setOpen(false) : openDropdown())}
+        title={`Priority: ${PRIORITY_LABELS[priority]}`}
+        className="rounded p-0.5 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+      >
+        <PriorityFlag priority={priority} />
+      </button>
+      {open &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            ref={popRef}
+            style={popStyle}
+            className="rounded-lg border border-gray-200 bg-white py-1 shadow-xl dark:border-gray-700 dark:bg-gray-900"
+          >
+            {PRIORITIES.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => {
+                  onChange(p);
+                  setOpen(false);
+                }}
+                className={cn(
+                  'flex w-full items-center gap-2 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-gray-50 dark:hover:bg-gray-800',
+                  p === priority && 'bg-gray-50 dark:bg-gray-800',
+                )}
+              >
+                <PriorityFlag priority={p} />
+                {PRIORITY_LABELS[p]}
+                {p === priority && <span className="ml-auto text-blue-500">✓</span>}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+}
+
+// ── Status badge ──────────────────────────────────────────────────────────────
+
+const base =
+  'inline-flex items-center rounded-full whitespace-nowrap border px-2 py-0.5 text-xs font-medium';
+
+function groupStyle(color: string): React.CSSProperties {
+  return {
+    borderColor: `${color}50`,
+    backgroundColor: `${color}18`,
+    color,
+  };
+}
+
+export function StatusBadge({
+  status,
+  groups,
+  className,
+}: {
+  status: string;
+  groups?: StatusGroup[];
+  className?: string;
+}) {
+  const group = groups?.find((g) => g.id === status);
+  const label = group?.label ?? status;
+  const style = group ? groupStyle(group.color) : undefined;
+
+  return (
+    <span className={cn(base, className)} style={style}>
+      {label}
+    </span>
+  );
+}
+
+// ── Clickable status badge ─────────────────────────────────────────────────────
+
+interface ClickableStatusBadgeProps {
+  status: string;
+  groups: StatusGroup[];
+  onCycle: (next: string) => void;
+  className?: string;
+}
+
+export function ClickableStatusBadge({
+  status,
+  groups,
+  onCycle,
+  className,
+}: ClickableStatusBadgeProps) {
+  const idx = groups.findIndex((g) => g.id === status);
+  const current = groups[idx] ?? { id: status, label: status, color: '#6b7280', isDefault: false };
+  const next = groups[(idx + 1) % groups.length] ?? groups[0];
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onCycle(next?.id ?? status);
+      }}
+      aria-label={`Status: ${current.label}. Click to change to ${next?.label ?? current.label}`}
+      title={`Click to mark as ${next?.label ?? current.label}`}
+      style={groupStyle(current.color)}
+      className={cn(
+        base,
+        'cursor-pointer transition-opacity hover:opacity-75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1',
+        className,
+      )}
+    >
+      {current.label}
+    </button>
+  );
 }

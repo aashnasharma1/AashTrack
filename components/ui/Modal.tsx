@@ -7,7 +7,7 @@ import { cn } from '@/lib/cn';
 interface ModalProps {
   open: boolean;
   onClose: () => void;
-  title: string;
+  title?: string;
   children: ReactNode;
   className?: string;
 }
@@ -58,7 +58,8 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="modal-title"
+      aria-labelledby={title ? 'modal-title' : undefined}
+      aria-label={title ? undefined : 'Dialog'}
     >
       {/* Backdrop */}
       <div
@@ -77,19 +78,26 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
           className,
         )}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800">
-          <h2 id="modal-title" className="text-base font-semibold text-gray-900 dark:text-gray-100">
-            {title}
-          </h2>
-          <button
-            onClick={onClose}
-            aria-label="Close modal"
-            className="rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+        {/* Close button — always visible, absolutely positioned */}
+        <button
+          onClick={onClose}
+          aria-label="Close modal"
+          className="absolute right-4 top-4 z-10 rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        {/* Optional header */}
+        {title && (
+          <div className="border-b border-gray-200 px-5 py-4 pr-12 dark:border-gray-800">
+            <h2
+              id="modal-title"
+              className="text-base font-semibold text-gray-900 dark:text-gray-100"
+            >
+              {title}
+            </h2>
+          </div>
+        )}
 
         {/* Body */}
         <div className="px-5 py-4">{children}</div>

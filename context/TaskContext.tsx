@@ -4,16 +4,23 @@ import {
   createContext,
   useContext,
   useReducer,
+  useState,
   useEffect,
   useCallback,
-  useRef,
-  useMemo,
   type ReactNode,
 } from 'react';
 import { taskReducer, initialState, type TaskAction } from '@/lib/taskReducer';
-import type { TasksState, Task, TaskFormValues, FilterState, SortState } from '@/types/task';
+import type {
+  TasksState,
+  Collection,
+  Task,
+  TaskFormValues,
+  FilterState,
+  SortState,
+  StatusGroup,
+} from '@/types/task';
 
-const STORAGE_KEY = 'aashtrack_tasks';
+const STORAGE_KEY = 'aashtrack_v2';
 
 function load(): TasksState {
   try {
@@ -21,6 +28,11 @@ function load(): TasksState {
     if (!raw) return initialState;
     const parsed = JSON.parse(raw) as Partial<TasksState>;
     return {
+      collections: Array.isArray(parsed.collections) ? parsed.collections : [],
+      statusGroups:
+        Array.isArray(parsed.statusGroups) && parsed.statusGroups.length > 0
+          ? parsed.statusGroups
+          : initialState.statusGroups,
       tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
       filter: initialState.filter,
       sort: parsed.sort ?? initialState.sort,
@@ -32,7 +44,15 @@ function load(): TasksState {
 
 function save(state: TasksState): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ tasks: state.tasks, sort: state.sort }));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        collections: state.collections,
+        statusGroups: state.statusGroups,
+        tasks: state.tasks,
+        sort: state.sort,
+      }),
+    );
   } catch {
     // quota exceeded or unavailable — silently continue
   }
@@ -41,7 +61,9 @@ function save(state: TasksState): void {
 interface TaskContextValue {
   state: TasksState;
   dispatch: React.Dispatch<TaskAction>;
-  collections: string[];
+  addCollection: (name: string) => void;
+  deleteCollection: (id: string) => void;
+  getCollection: (slug: string) => Collection | undefined;
   addTask: (v: TaskFormValues) => void;
   updateTask: (id: string, v: TaskFormValues) => void;
   deleteTask: (id: string) => void;
@@ -49,31 +71,40 @@ interface TaskContextValue {
   setFilter: (f: Partial<FilterState>) => void;
   setSort: (s: Partial<SortState>) => void;
   clearFilters: () => void;
+  addStatusGroup: (label: string, color: string) => void;
+  deleteStatusGroup: (id: string) => void;
+  reorderStatusGroups: (groups: StatusGroup[]) => void;
+  updateStatusGroup: (id: string, updates: { label?: string; color?: string }) => void;
 }
 
 const TaskContext = createContext<TaskContextValue | null>(null);
 
 export function TaskProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(taskReducer, initialState);
-  const hydrated = useRef(false);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    if (hydrated.current) return;
-    hydrated.current = true;
     dispatch({ type: 'HYDRATE', payload: load() });
+    setIsHydrated(true);
   }, []);
 
   useEffect(() => {
-    if (!hydrated.current) return;
+    if (!isHydrated) return;
     save(state);
-  }, [state]);
+  }, [state, isHydrated]);
 
-  // Derive sorted unique collection names from tasks
-  const collections = useMemo(() => {
-    const set = new Set(state.tasks.map((t) => t.collection).filter(Boolean));
-    return Array.from(set).sort();
-  }, [state.tasks]);
-
+  const addCollection = useCallback(
+    (name: string) => dispatch({ type: 'ADD_COLLECTION', payload: { name } }),
+    [],
+  );
+  const deleteCollection = useCallback(
+    (id: string) => dispatch({ type: 'DELETE_COLLECTION', payload: id }),
+    [],
+  );
+  const getCollection = useCallback(
+    (slug: string) => state.collections.find((c) => c.slug === slug),
+    [state.collections],
+  );
   const addTask = useCallback(
     (v: TaskFormValues) => dispatch({ type: 'ADD_TASK', payload: v }),
     [],
@@ -100,12 +131,33 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   );
   const clearFilters = useCallback(() => dispatch({ type: 'CLEAR_FILTERS' }), []);
 
+  const addStatusGroup = useCallback(
+    (label: string, color: string) =>
+      dispatch({ type: 'ADD_STATUS_GROUP', payload: { label, color } }),
+    [],
+  );
+  const deleteStatusGroup = useCallback(
+    (id: string) => dispatch({ type: 'DELETE_STATUS_GROUP', payload: id }),
+    [],
+  );
+  const reorderStatusGroups = useCallback(
+    (groups: StatusGroup[]) => dispatch({ type: 'REORDER_STATUS_GROUPS', payload: groups }),
+    [],
+  );
+  const updateStatusGroup = useCallback(
+    (id: string, updates: { label?: string; color?: string }) =>
+      dispatch({ type: 'UPDATE_STATUS_GROUP', payload: { id, ...updates } }),
+    [],
+  );
+
   return (
     <TaskContext.Provider
       value={{
         state,
         dispatch,
-        collections,
+        addCollection,
+        deleteCollection,
+        getCollection,
         addTask,
         updateTask,
         deleteTask,
@@ -113,6 +165,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         setFilter,
         setSort,
         clearFilters,
+        addStatusGroup,
+        deleteStatusGroup,
+        reorderStatusGroups,
+        updateStatusGroup,
       }}
     >
       {children}

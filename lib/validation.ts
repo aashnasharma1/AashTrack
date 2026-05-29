@@ -16,13 +16,13 @@ export const taskSchema = z.object({
   priority: z.enum(['low', 'medium', 'high'] as const, {
     message: 'Please select a priority',
   }),
-  status: z.enum(['todo', 'in-progress', 'done'] as const, {
-    message: 'Please select a status',
-  }),
+  status: z.string().min(1, 'Please select a status'),
   collection: z
     .string()
     .min(1, 'Collection is required')
     .max(COLLECTION_MAX, `Collection must be ${COLLECTION_MAX} characters or fewer`),
+  startTime: z.string().optional(),
+  endTime: z.string().optional(),
 });
 
 export type TaskSchemaValues = z.infer<typeof taskSchema>;

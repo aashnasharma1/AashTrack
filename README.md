@@ -21,16 +21,20 @@ npm run build     # production build
 ## Features
 
 - **Create, edit, delete** tasks with full form validation
-- **Priority** (Low / Medium / High) and **Status** (To Do / In Progress / Done) on every task card
-- **Filter** by status and/or priority — filter chips in the toolbar
-- **Sort** by date, priority, or title — toggleable asc/desc per column
-- **Drag-and-drop reorder** via @dnd-kit (disabled while filters are active)
+- **Inline status cycle** — click any status badge to cycle To Do → In Progress → Done without opening the edit modal
+- **Priority** (Low / Medium / High) and **Status** (To Do / In Progress / Done) visible on every task card and table row
+- **Filter** by status, priority, or collection — filter chips in the toolbar
+- **Text search** — type to filter tasks by title or description; press `/` to focus the search field
+- **Sort** by date, priority, or title — toggleable asc/desc; drag-and-drop switches to manual order mode
+- **Drag-and-drop reorder** via @dnd-kit (keyboard accessible; disabled while filters or search are active)
+- **Two view modes** — card view (with drag handles) and table view
 - **Dark mode** — system default + manual toggle
-- **Empty state** — distinct states for "no tasks" vs "no matching filters"
+- **Empty state** — distinct states for "no tasks" vs "no matching filters/search"
 - **Inline validation errors** — required fields, character limits (title: 100, description: 500)
 - **Confirmation step** on delete — double-click guard against accidental deletion
-- **localStorage persistence** — tasks survive page refresh with a silent graceful fallback
-- **Accessible** — keyboard navigation, ARIA labels, focus trapping in modal, focus restoration on close
+- **localStorage persistence** — tasks survive page refresh with a graceful fallback if storage is unavailable
+- **Keyboard shortcuts** — `N` new task, `/` focus search, `?` show shortcuts panel, `Esc` dismiss
+- **Accessible** — skip-to-main link, ARIA labels, focus trap in modal, focus restoration, `prefers-reduced-motion`, `aria-live` announcements, `aria-sort` on table headers
 
 ## Architecture
 
@@ -102,11 +106,12 @@ Tests cover:
 - **ESLint**: `next/core-web-vitals` + `@typescript-eslint/recommended` + `prettier` integration. No `any` types enforced.
 - **Prettier**: single quotes, trailing commas, 100-char print width, `prettier-plugin-tailwindcss` for class ordering.
 - **Husky + lint-staged**: pre-commit hook runs `eslint --fix` and `prettier --write` on staged files.
+- **GitHub Actions CI** (`.github/workflows/ci.yml`): runs lint → type-check → tests → build on every push and pull request to `main`.
 
 ## Known Trade-offs & What I'd Do With More Time
 
 - **No URL-based filter state**: justified above. Would add it for a team-facing dashboard where filter links are shared.
 - **No optimistic updates**: unnecessary for localStorage-only — operations are synchronous.
-- **No Playwright E2E tests**: would add a full create → filter → delete flow covering the happy path.
+- **No Playwright E2E tests**: would add a full create → search → status-cycle → delete flow covering the happy path.
 - **No virtualization**: for hundreds of tasks, a windowed list (e.g. `@tanstack/react-virtual`) would be needed.
 - **Single-page layout**: would add a task detail route (`/tasks/[id]`) for richer viewing on larger screens.

@@ -4,21 +4,22 @@ import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
+import { MapPin } from 'lucide-react';
 import lightLogo from '@/app/public/images/logo_light.png';
 import darkLogo from '@/app/public/images/logo_dark.png';
 import { ThemeToggle } from './ThemeToggle';
 
 function usePageTitle(): string {
   const pathname = usePathname();
-  if (pathname === '/') return 'My Tasks';
-  if (pathname === '/projects') return 'Projects';
-  if (/^\/projects\/[^/]+$/.test(pathname)) return 'Project';
-  if (/^\/projects\/[^/]+\/modules\/[^/]+$/.test(pathname)) return 'Module';
+  if (pathname === '/') return 'Dashboard';
+  if (pathname === '/collections') return 'Collections';
+  if (/^\/collections\/[^/]+$/.test(pathname)) return 'Collection';
   return 'AashTrack';
 }
 
 export function Header() {
   const title = usePageTitle();
+  const pathname = usePathname();
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -46,8 +47,20 @@ export function Header() {
       {/* Mobile page title (sidebar hidden on mobile) */}
       <h1 className="text-sm font-semibold text-gray-900 dark:text-gray-100 md:hidden">{title}</h1>
 
-      {/* Theme toggle */}
-      <ThemeToggle />
+      {/* Right actions */}
+      <div className="flex items-center gap-1">
+        {pathname === '/' && (
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('aashtrack:start-tour'))}
+            aria-label="Restart onboarding tour"
+            title="Take a tour"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+          >
+            <MapPin className="h-4 w-4" />
+          </button>
+        )}
+        <ThemeToggle />
+      </div>
     </header>
   );
 }

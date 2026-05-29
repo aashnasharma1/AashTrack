@@ -1,25 +1,71 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Pencil, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { GripVertical, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { PriorityBadge, StatusBadge } from '@/components/ui/Badge';
+import { PrioritySelector, ClickableStatusBadge, StatusBadge } from '@/components/ui/Badge';
+import { TimeRangePicker } from '@/components/ui/TimePicker';
 import { Button } from '@/components/ui/Button';
+import { useTaskContext } from '@/context/TaskContext';
 import { truncate, formatRelativeDate } from '@/utils/taskUtils';
-import type { Task } from '@/types/task';
+import type { Collection, Priority, Task } from '@/types/task';
+
+const PRIORITY_BORDER: Record<Priority, string> = {
+  high: 'border-l-red-400 dark:border-l-red-500',
+  medium: 'border-l-amber-400 dark:border-l-amber-500',
+  low: 'border-l-gray-200 dark:border-l-gray-700',
+};
 
 interface TaskCardProps {
   task: Task;
-  onEdit: (task: Task) => void;
+  collections?: Collection[];
   onDelete: (id: string) => void;
+  onUpdate?: (
+    id: string,
+    patch: { title?: string; priority?: Priority; startTime?: string; endTime?: string },
+  ) => void;
+  onStatusChange?: (id: string, status: Task['status']) => void;
+  /** Keep for table/board callers that still wire the modal */
+  onEdit?: (task: Task) => void;
   isDragDisabled?: boolean;
 }
 
-export function TaskCard({ task, onEdit, onDelete, isDragDisabled = false }: TaskCardProps) {
+export function TaskCard({
+  task,
+  collections = [],
+  onDelete,
+  onUpdate,
+  onStatusChange,
+  onEdit,
+  isDragDisabled = false,
+}: TaskCardProps) {
+  const collectionName = collections.find((c) => c.slug === task.collection)?.name ?? '';
+  const {
+    state: { statusGroups },
+  } = useTaskContext();
   const [expanded, setExpanded] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Inline title edit
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(task.title);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setTitleDraft(task.title);
+  }, [task.title]);
+  useEffect(() => {
+    if (editingTitle) titleInputRef.current?.select();
+  }, [editingTitle]);
+
+  const saveTitle = () => {
+    const trimmed = titleDraft.trim();
+    if (trimmed && trimmed !== task.title) onUpdate?.(task.id, { title: trimmed });
+    else setTitleDraft(task.title);
+    setEditingTitle(false);
+  };
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
@@ -42,16 +88,19 @@ export function TaskCard({ task, onEdit, onDelete, isDragDisabled = false }: Tas
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        'group relative rounded-xl border bg-white p-4 shadow-sm transition-all duration-150',
-        'dark:border-gray-800 dark:bg-gray-900',
+        'group relative rounded-xl border border-l-4 bg-white shadow-sm transition-all duration-150',
+        'dark:bg-gray-900',
         isDragging
-          ? 'z-50 scale-[1.02] border-indigo-300 opacity-90 shadow-xl dark:border-indigo-700'
-          : 'border-gray-200 hover:border-gray-300 hover:shadow-md dark:hover:border-gray-700',
+          ? 'z-50 scale-[1.02] border-blue-300 border-l-blue-400 opacity-90 shadow-xl dark:border-blue-700 dark:border-l-blue-500'
+          : cn(
+              'border-gray-200 hover:border-gray-300 hover:shadow-md dark:border-gray-800 dark:hover:border-gray-700',
+              PRIORITY_BORDER[task.priority],
+            ),
       )}
       role="article"
       aria-label={`Task: ${task.title}`}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-2.5 p-4">
         {/* Drag handle */}
         {!isDragDisabled && (
           <button
@@ -59,10 +108,10 @@ export function TaskCard({ task, onEdit, onDelete, isDragDisabled = false }: Tas
             {...listeners}
             aria-label="Drag to reorder"
             className={cn(
-              'mt-0.5 flex-shrink-0 cursor-grab touch-none rounded p-0.5 text-gray-300',
+              'mt-1 flex-shrink-0 cursor-grab touch-none rounded p-0.5 text-gray-300',
               'opacity-0 transition-opacity active:cursor-grabbing group-hover:opacity-100',
               'hover:bg-gray-100 hover:text-gray-500 dark:hover:bg-gray-800',
-              'focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',
+              'focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
             )}
           >
             <GripVertical className="h-4 w-4" />
@@ -70,23 +119,60 @@ export function TaskCard({ task, onEdit, onDelete, isDragDisabled = false }: Tas
         )}
 
         <div className="min-w-0 flex-1">
-          {/* Title row */}
-          <div className="flex flex-wrap items-start gap-2">
-            <h3
-              className="min-w-0 flex-1 text-sm font-semibold text-gray-900 dark:text-gray-100"
-              title={task.title}
-            >
-              {task.title}
-            </h3>
-            <div className="flex shrink-0 items-center gap-1.5">
-              <PriorityBadge priority={task.priority} />
-              <StatusBadge status={task.status} />
+          {/* Title + status row */}
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              {editingTitle ? (
+                <input
+                  ref={titleInputRef}
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  onBlur={saveTitle}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      saveTitle();
+                    }
+                    if (e.key === 'Escape') {
+                      setTitleDraft(task.title);
+                      setEditingTitle(false);
+                    }
+                  }}
+                  maxLength={100}
+                  className="w-full rounded px-1 text-base font-bold text-gray-900 outline-none ring-2 ring-blue-400 dark:bg-transparent dark:text-gray-100 dark:ring-blue-500"
+                />
+              ) : (
+                <h3
+                  onClick={() => {
+                    if (onUpdate) setEditingTitle(true);
+                    else onEdit?.(task);
+                  }}
+                  className={cn(
+                    'text-base font-bold leading-snug text-gray-900 dark:text-gray-100',
+                    onUpdate && 'cursor-text hover:text-blue-700 dark:hover:text-blue-400',
+                  )}
+                  title={onUpdate ? 'Click to edit title' : task.title}
+                >
+                  {task.title}
+                </h3>
+              )}
             </div>
+
+            {onStatusChange ? (
+              <ClickableStatusBadge
+                status={task.status}
+                groups={statusGroups}
+                onCycle={(next) => onStatusChange(task.id, next)}
+                className="mt-0.5 shrink-0"
+              />
+            ) : (
+              <StatusBadge status={task.status} groups={statusGroups} className="mt-0.5 shrink-0" />
+            )}
           </div>
 
           {/* Description */}
           {hasDescription && (
-            <div className="mt-1.5">
+            <div className="mt-2">
               <p className="text-sm leading-relaxed text-gray-500 dark:text-gray-400">
                 {expanded ? task.description : truncate(task.description, 120)}
               </p>
@@ -94,7 +180,7 @@ export function TaskCard({ task, onEdit, onDelete, isDragDisabled = false }: Tas
                 <button
                   onClick={() => setExpanded((e) => !e)}
                   aria-expanded={expanded}
-                  className="mt-1 flex items-center gap-0.5 text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200"
+                  className="mt-1 flex items-center gap-0.5 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
                 >
                   {expanded ? (
                     <>
@@ -110,33 +196,45 @@ export function TaskCard({ task, onEdit, onDelete, isDragDisabled = false }: Tas
             </div>
           )}
 
-          {/* Footer: collection + date + actions */}
-          <div className="mt-3 flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              {task.collection && (
-                <span className="truncate rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                  {task.collection}
-                </span>
-              )}
+          {/* Footer: priority · time · collection · date · delete */}
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {/* Inline priority selector */}
+            {onUpdate && (
+              <PrioritySelector
+                priority={task.priority}
+                onChange={(p) => onUpdate(task.id, { priority: p })}
+              />
+            )}
+
+            {/* Inline time range picker */}
+            {onUpdate && (
+              <TimeRangePicker
+                startTime={task.startTime}
+                endTime={task.endTime}
+                onChange={(s, e) => onUpdate(task.id, { startTime: s, endTime: e })}
+              />
+            )}
+
+            {/* Divider */}
+            {onUpdate && (collectionName || true) && (
+              <span className="h-3 w-px bg-gray-200 dark:bg-gray-700" aria-hidden="true" />
+            )}
+
+            {collectionName && (
+              <span className="truncate rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                {collectionName}
+              </span>
+            )}
+
+            {/* Right-side: date + delete */}
+            <div className="ml-auto flex shrink-0 items-center gap-2">
               <time
                 dateTime={task.createdAt}
-                className="shrink-0 text-xs text-gray-400 dark:text-gray-600"
+                className="text-xs text-gray-400 dark:text-gray-600"
                 title={new Date(task.createdAt).toLocaleString()}
               >
                 {formatRelativeDate(task.createdAt)}
               </time>
-            </div>
-
-            <div className="flex shrink-0 items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onEdit(task)}
-                aria-label={`Edit task: ${task.title}`}
-                className="h-7 w-7 p-0"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
               <Button
                 variant={confirmDelete ? 'danger' : 'ghost'}
                 size="sm"
@@ -155,9 +253,17 @@ export function TaskCard({ task, onEdit, onDelete, isDragDisabled = false }: Tas
       </div>
 
       {confirmDelete && (
-        <div className="absolute inset-x-0 -bottom-0.5 flex items-center justify-center rounded-b-xl bg-red-50 py-1 text-xs text-red-600 dark:bg-red-950/50 dark:text-red-400">
-          Click delete again to confirm
-        </div>
+        <>
+          <div
+            className="absolute inset-x-0 -bottom-0.5 flex items-center justify-center rounded-b-xl bg-red-50 py-1 text-xs text-red-600 dark:bg-red-950/50 dark:text-red-400"
+            aria-hidden="true"
+          >
+            Click delete again to confirm
+          </div>
+          <span role="status" aria-live="polite" className="sr-only">
+            Press delete again to confirm deletion of &ldquo;{task.title}&rdquo;
+          </span>
+        </>
       )}
     </div>
   );
