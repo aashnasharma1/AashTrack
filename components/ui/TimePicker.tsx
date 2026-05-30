@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Clock, ChevronUp, ChevronDown } from 'lucide-react';
+import { Clock, ChevronUp, ChevronDown, CalendarDays } from 'lucide-react';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { cn } from '@/lib/cn';
 
 type HM = { h: number; m: number };
@@ -15,6 +16,14 @@ function parse(t?: string): HM {
 
 function fmt({ h, m }: HM) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/** "YYYY-MM-DD" → short "Mon D" for compact display */
+function fmtDateShort(d?: string): string {
+  if (!d) return '';
+  const dt = new Date(`${d}T00:00:00`);
+  if (isNaN(dt.getTime())) return '';
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 const PRESETS = [
@@ -54,9 +63,12 @@ function Spinner({ value, onInc, onDec }: { value: number; onInc: () => void; on
 interface PanelProps {
   start: HM;
   end: HM;
+  startDate?: string;
+  endDate?: string;
   activeTab: 'start' | 'end';
   onTabChange: (t: 'start' | 'end') => void;
   onSetTime: (v: HM) => void;
+  onSetDate: (d: string | undefined) => void;
   onClear: () => void;
   onDone?: () => void;
 }
@@ -64,13 +76,25 @@ interface PanelProps {
 function PickerPanel({
   start,
   end,
+  startDate,
+  endDate,
   activeTab,
   onTabChange,
   onSetTime,
+  onSetDate,
   onClear,
   onDone,
 }: PanelProps) {
   const active = activeTab === 'start' ? start : end;
+  const activeDate = activeTab === 'start' ? startDate : endDate;
+
+  const startTotalMin = start.h * 60 + start.m;
+  const endTotalMin = end.h * 60 + end.m;
+  // Next-day if explicit end date is after start date, or (no dates) end time wraps past start
+  const endIsNextDay =
+    endDate && startDate
+      ? endDate > startDate
+      : !startDate && !endDate && endTotalMin < startTotalMin;
 
   return (
     <div className="w-72 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
@@ -94,6 +118,11 @@ function PickerPanel({
               <Clock className="h-3 w-3" aria-hidden="true" />
               {tab === 'start' ? 'Start' : 'End'} ·{' '}
               <span className="font-mono tabular-nums">{fmt(val)}</span>
+              {tab === 'end' && endIsNextDay && (
+                <span className="rounded-full bg-amber-100 px-1 py-px text-[9px] font-bold text-amber-600 dark:bg-amber-950/60 dark:text-amber-400">
+                  +1
+                </span>
+              )}
             </button>
           );
         })}
@@ -101,7 +130,6 @@ function PickerPanel({
 
       {/* Body: presets + spinner */}
       <div className="flex">
-        {/* Quick presets */}
         <div className="flex-1 border-r border-gray-50 py-1 dark:border-gray-800">
           {PRESETS.map((p) => (
             <button
@@ -117,8 +145,6 @@ function PickerPanel({
             </button>
           ))}
         </div>
-
-        {/* Spinners */}
         <div className="flex flex-col items-center justify-center gap-1.5 px-5 py-3">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
             {activeTab === 'start' ? 'Start' : 'End'}
@@ -141,6 +167,21 @@ function PickerPanel({
         </div>
       </div>
 
+      {/* Date row for the active tab */}
+      <div className="border-t border-gray-100 px-4 py-2.5 dark:border-gray-800">
+        <div className="mb-2 flex items-center gap-2">
+          <CalendarDays className="h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden="true" />
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {activeTab === 'start' ? 'Start' : 'End'} date
+          </span>
+        </div>
+        <DatePicker
+          value={activeDate}
+          onChange={onSetDate}
+          placeholder={activeTab === 'start' ? 'Start date' : 'End date'}
+        />
+      </div>
+
       {/* Footer */}
       <div className="flex items-center justify-between border-t border-gray-100 px-4 py-2.5 dark:border-gray-800">
         <button
@@ -148,7 +189,7 @@ function PickerPanel({
           onClick={onClear}
           className="text-xs text-gray-400 transition-colors hover:text-red-500 dark:hover:text-red-400"
         >
-          Clear
+          Clear all
         </button>
         {onDone && (
           <button
@@ -167,15 +208,26 @@ function PickerPanel({
 export interface TimeRangePickerProps {
   startTime?: string;
   endTime?: string;
-  onChange: (startTime?: string, endTime?: string) => void;
+  startDate?: string;
+  endDate?: string;
+  onChange: (startTime?: string, endTime?: string, startDate?: string, endDate?: string) => void;
   /** Render inline without a trigger button (for use inside forms) */
   inline?: boolean;
 }
 
-export function TimeRangePicker({ startTime, endTime, onChange, inline }: TimeRangePickerProps) {
+export function TimeRangePicker({
+  startTime,
+  endTime,
+  startDate,
+  endDate,
+  onChange,
+  inline,
+}: TimeRangePickerProps) {
   const [open, setOpen] = useState(false);
   const [start, setStart] = useState<HM>(() => parse(startTime));
   const [end, setEnd] = useState<HM>(() => parse(endTime));
+  const [sDate, setSDate] = useState<string | undefined>(startDate);
+  const [eDate, setEDate] = useState<string | undefined>(endDate);
   const [activeTab, setActiveTab] = useState<'start' | 'end'>('start');
   const [popStyle, setPopStyle] = useState<React.CSSProperties>({});
   const trigRef = useRef<HTMLButtonElement>(null);
@@ -184,9 +236,10 @@ export function TimeRangePicker({ startTime, endTime, onChange, inline }: TimeRa
   useEffect(() => {
     setStart(parse(startTime));
     setEnd(parse(endTime));
-  }, [startTime, endTime]);
+    setSDate(startDate);
+    setEDate(endDate);
+  }, [startTime, endTime, startDate, endDate]);
 
-  // Close on outside click or scroll
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
@@ -206,7 +259,7 @@ export function TimeRangePicker({ startTime, endTime, onChange, inline }: TimeRa
   const openPicker = () => {
     if (!trigRef.current) return;
     const rect = trigRef.current.getBoundingClientRect();
-    const h = 262; // estimated picker height
+    const h = 320;
     const showBelow = window.innerHeight - rect.bottom >= h;
     setPopStyle({
       position: 'fixed',
@@ -217,33 +270,49 @@ export function TimeRangePicker({ startTime, endTime, onChange, inline }: TimeRa
     setOpen((v) => !v);
   };
 
-  const apply = (s: HM, e: HM) => onChange(fmt(s), fmt(e));
+  const applyAll = (s: HM, e: HM, sd: string | undefined, ed: string | undefined) =>
+    onChange(fmt(s), fmt(e), sd, ed);
+
   const clear = () => {
-    onChange(undefined, undefined);
+    onChange(undefined, undefined, undefined, undefined);
     setOpen(false);
   };
 
   const handleSetTime = (v: HM) => {
     if (activeTab === 'start') {
       setStart(v);
-      apply(v, end);
+      applyAll(v, end, sDate, eDate);
     } else {
       setEnd(v);
-      apply(start, v);
+      applyAll(start, v, sDate, eDate);
+    }
+  };
+
+  const handleSetDate = (d: string | undefined) => {
+    if (activeTab === 'start') {
+      setSDate(d);
+      applyAll(start, end, d, eDate);
+    } else {
+      setEDate(d);
+      applyAll(start, end, sDate, d);
     }
   };
 
   const hasTime = !!(startTime || endTime);
+  const datePrefix = fmtDateShort(startDate);
 
   if (inline) {
     return (
       <PickerPanel
         start={start}
         end={end}
+        startDate={sDate}
+        endDate={eDate}
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onSetTime={handleSetTime}
-        onClear={() => onChange(undefined, undefined)}
+        onSetDate={handleSetDate}
+        onClear={() => onChange(undefined, undefined, undefined, undefined)}
       />
     );
   }
@@ -266,6 +335,7 @@ export function TimeRangePicker({ startTime, endTime, onChange, inline }: TimeRa
         <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
         {hasTime ? (
           <span className="font-medium tabular-nums">
+            {datePrefix && <span className="mr-1 text-gray-400">{datePrefix}</span>}
             {startTime ?? ''}
             {startTime && endTime ? ' – ' : ''}
             {endTime ?? ''}
@@ -282,9 +352,12 @@ export function TimeRangePicker({ startTime, endTime, onChange, inline }: TimeRa
             <PickerPanel
               start={start}
               end={end}
+              startDate={sDate}
+              endDate={eDate}
               activeTab={activeTab}
               onTabChange={setActiveTab}
               onSetTime={handleSetTime}
+              onSetDate={handleSetDate}
               onClear={clear}
               onDone={() => setOpen(false)}
             />

@@ -16,7 +16,31 @@ interface Step {
   placement: 'top' | 'bottom' | 'left' | 'right';
 }
 
-const STEPS: Step[] = [
+const DASHBOARD_STEPS: Step[] = [
+  {
+    target: 'dashboard-timeline',
+    title: "Today's Timeline",
+    description:
+      'Drag tasks to reschedule them in real-time. Pinch or ctrl+scroll to zoom. Resize by dragging the right edge. You can schedule up to 2 days ahead.',
+    placement: 'bottom',
+  },
+  {
+    target: 'dashboard-workload',
+    title: 'Workload by Status',
+    description:
+      'See at a glance how many tasks you have in each status. The chart updates as you complete tasks.',
+    placement: 'bottom',
+  },
+  {
+    target: 'dashboard-tracker',
+    title: 'Time Tracker',
+    description:
+      'Track time spent on tasks. Click any task in the quick-start list to begin. Time is saved automatically.',
+    placement: 'bottom',
+  },
+];
+
+const COLLECTION_STEPS: Step[] = [
   {
     target: 'new-task',
     title: 'Create a task',
@@ -53,6 +77,12 @@ const STEPS: Step[] = [
     placement: 'bottom',
   },
 ];
+
+const getStepsForPage = (pathname: string): Step[] => {
+  if (pathname === '/') return DASHBOARD_STEPS;
+  if (pathname.startsWith('/collections')) return COLLECTION_STEPS;
+  return [];
+};
 
 function calcTooltipStyle(rect: DOMRect, placement: Step['placement']): CSSProperties {
   const cy = rect.top + rect.height / 2;
@@ -120,18 +150,22 @@ export function OnboardingTour() {
     return () => window.removeEventListener('aashtrack:start-tour', restart);
   }, []);
 
-  const findRect = useCallback((s: number) => {
-    const target = STEPS[s]?.target;
-    if (!target) return;
-    const attempt = () => {
-      const el = document.querySelector(`[data-tour="${target}"]`);
-      if (el) setRect(el.getBoundingClientRect());
-      else setRect(null);
-    };
-    attempt();
-    // Retry after paint in case element is still mounting
-    requestAnimationFrame(attempt);
-  }, []);
+  const findRect = useCallback(
+    (s: number) => {
+      const steps = getStepsForPage(pathname);
+      const target = steps[s]?.target;
+      if (!target) return;
+      const attempt = () => {
+        const el = document.querySelector(`[data-tour="${target}"]`);
+        if (el) setRect(el.getBoundingClientRect());
+        else setRect(null);
+      };
+      attempt();
+      // Retry after paint in case element is still mounting
+      requestAnimationFrame(attempt);
+    },
+    [pathname],
+  );
 
   useEffect(() => {
     if (!active) return;
@@ -151,13 +185,15 @@ export function OnboardingTour() {
   }, []);
 
   const next = useCallback(() => {
-    if (step < STEPS.length - 1) setStep((s) => s + 1);
+    const steps = getStepsForPage(pathname);
+    if (step < steps.length - 1) setStep((s) => s + 1);
     else finish();
-  }, [step, finish]);
+  }, [step, finish, pathname]);
 
-  if (!active || !mounted || pathname !== '/' || !rect) return null;
+  const steps = getStepsForPage(pathname);
+  if (!active || !mounted || steps.length === 0 || !rect) return null;
 
-  const s = STEPS[step];
+  const s = steps[step];
   const sx = rect.left - PAD;
   const sy = rect.top - PAD;
   const sw = rect.width + PAD * 2;
@@ -198,12 +234,12 @@ export function OnboardingTour() {
         style={calcTooltipStyle(rect, s.placement)}
         className="rounded-2xl border border-gray-100 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900"
         role="dialog"
-        aria-label={`Tour step ${step + 1} of ${STEPS.length}: ${s.title}`}
+        aria-label={`Tour step ${step + 1} of ${steps.length}: ${s.title}`}
       >
         {/* Progress + close */}
         <div className="flex items-center justify-between px-4 pt-4">
           <div className="flex gap-1.5">
-            {STEPS.map((_, i) => (
+            {steps.map((_, i) => (
               <div
                 key={i}
                 className={`h-1.5 rounded-full transition-all duration-300 ${
@@ -228,7 +264,7 @@ export function OnboardingTour() {
         {/* Content */}
         <div className="px-4 pb-2 pt-3">
           <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-blue-500">
-            Step {step + 1} of {STEPS.length}
+            Step {step + 1} of {steps.length}
           </p>
           <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">{s.title}</h3>
           <p className="mt-1.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
@@ -248,7 +284,7 @@ export function OnboardingTour() {
             onClick={next}
             className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
           >
-            {step < STEPS.length - 1 ? (
+            {step < steps.length - 1 ? (
               <>
                 Next <ArrowRight className="h-3 w-3" />
               </>

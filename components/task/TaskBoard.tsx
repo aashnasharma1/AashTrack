@@ -22,9 +22,7 @@ import { Plus, CircleDashed, Loader2, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { TaskBoardCard } from './TaskBoardCard';
 import { useTaskContext } from '@/context/TaskContext';
-import type { Collection, Priority, Status, Task, StatusGroup } from '@/types/task';
-
-type TaskPatch = { title?: string; priority?: Priority; startTime?: string; endTime?: string };
+import type { Collection, Status, Task, StatusGroup, TaskPatch } from '@/types/task';
 
 // Default icons for built-in statuses
 const DEFAULT_ICONS: Record<string, React.ElementType> = {
@@ -42,6 +40,7 @@ function DroppableColumn({
   onDelete,
   onUpdate,
   onStatusChange,
+  onEdit,
   onCreateTask,
   className,
 }: {
@@ -51,6 +50,7 @@ function DroppableColumn({
   onDelete: (id: string) => void;
   onUpdate: (id: string, patch: TaskPatch) => void;
   onStatusChange: (id: string, status: Status) => void;
+  onEdit: (task: Task) => void;
   onCreateTask: () => void;
   className?: string;
 }) {
@@ -122,6 +122,7 @@ function DroppableColumn({
                   onDelete={onDelete}
                   onUpdate={onUpdate}
                   onStatusChange={onStatusChange}
+                  onEdit={onEdit}
                   isDragDisabled={false}
                 />
               </div>
@@ -152,6 +153,7 @@ interface TaskBoardProps {
   onDelete: (id: string) => void;
   onUpdate: (id: string, patch: TaskPatch) => void;
   onStatusChange: (id: string, status: Status) => void;
+  onEdit?: (task: Task) => void;
   onCreateTask: () => void;
 }
 
@@ -161,6 +163,7 @@ export function TaskBoard({
   onDelete,
   onUpdate,
   onStatusChange,
+  onEdit,
   onCreateTask,
 }: TaskBoardProps) {
   const {
@@ -231,6 +234,7 @@ export function TaskBoard({
               onDelete={onDelete}
               onUpdate={onUpdate}
               onStatusChange={onStatusChange}
+              onEdit={onEdit ?? (() => {})}
               onCreateTask={onCreateTask}
               className={isScrollable ? 'w-72 shrink-0' : undefined}
             />

@@ -1,22 +1,20 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Trash2, GripVertical } from 'lucide-react';
+import { Trash2, GripVertical, Pencil } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { PrioritySelector, ClickableStatusBadge } from '@/components/ui/Badge';
 import { TimeRangePicker } from '@/components/ui/TimePicker';
 import { useTaskContext } from '@/context/TaskContext';
-import type { Collection, Priority, Task } from '@/types/task';
+import type { Collection, Task, TaskPatch } from '@/types/task';
 
 interface TaskListItemProps {
   task: Task;
   collections?: Collection[];
   onDelete: (id: string) => void;
-  onUpdate: (
-    id: string,
-    patch: { title?: string; priority?: Priority; startTime?: string; endTime?: string },
-  ) => void;
+  onUpdate: (id: string, patch: TaskPatch) => void;
   onStatusChange: (id: string, status: Task['status']) => void;
+  onEdit?: (task: Task) => void;
   dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
 }
 
@@ -25,6 +23,7 @@ export function TaskListItem({
   onDelete,
   onUpdate,
   onStatusChange,
+  onEdit,
   dragHandleProps,
 }: TaskListItemProps) {
   const {
@@ -62,7 +61,7 @@ export function TaskListItem({
     <div
       className={cn(
         'group grid items-center gap-2 px-3 py-2 transition-colors',
-        'grid-cols-[20px_1fr_112px_52px_88px_28px]',
+        'grid-cols-[20px_1fr_112px_52px_88px_56px]',
         'hover:bg-gray-50 dark:hover:bg-gray-800/50',
         confirmDelete && 'bg-red-50/40 dark:bg-red-950/20',
       )}
@@ -129,7 +128,11 @@ export function TaskListItem({
         <TimeRangePicker
           startTime={task.startTime}
           endTime={task.endTime}
-          onChange={(s, e) => onUpdate(task.id, { startTime: s, endTime: e })}
+          startDate={task.startDate}
+          endDate={task.endDate}
+          onChange={(s, e, sd, ed) =>
+            onUpdate(task.id, { startTime: s, endTime: e, startDate: sd, endDate: ed })
+          }
         />
       </div>
 
@@ -150,8 +153,18 @@ export function TaskListItem({
         />
       </div>
 
-      {/* Delete */}
-      <div className="shrink-0">
+      {/* Edit + Delete */}
+      <div className="flex shrink-0 items-center gap-0.5">
+        {onEdit && (
+          <button
+            type="button"
+            onClick={() => onEdit(task)}
+            aria-label={`Edit task: ${task.title}`}
+            className="rounded p-1 text-gray-300 opacity-0 transition-all hover:bg-gray-100 hover:text-gray-600 focus-visible:opacity-100 group-hover:opacity-100 dark:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        )}
         <button
           type="button"
           onClick={handleDelete}

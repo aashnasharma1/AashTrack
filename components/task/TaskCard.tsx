@@ -10,7 +10,7 @@ import { TimeRangePicker } from '@/components/ui/TimePicker';
 import { Button } from '@/components/ui/Button';
 import { useTaskContext } from '@/context/TaskContext';
 import { truncate, formatRelativeDate } from '@/utils/taskUtils';
-import type { Collection, Priority, Task } from '@/types/task';
+import type { Collection, Priority, Task, TaskPatch } from '@/types/task';
 
 const PRIORITY_BORDER: Record<Priority, string> = {
   high: 'border-l-red-400 dark:border-l-red-500',
@@ -22,10 +22,7 @@ interface TaskCardProps {
   task: Task;
   collections?: Collection[];
   onDelete: (id: string) => void;
-  onUpdate?: (
-    id: string,
-    patch: { title?: string; priority?: Priority; startTime?: string; endTime?: string },
-  ) => void;
+  onUpdate?: (id: string, patch: TaskPatch) => void;
   onStatusChange?: (id: string, status: Task['status']) => void;
   /** Keep for table/board callers that still wire the modal */
   onEdit?: (task: Task) => void;
@@ -166,7 +163,7 @@ export function TaskCard({
                 className="mt-0.5 shrink-0"
               />
             ) : (
-              <StatusBadge status={task.status} groups={statusGroups} className="mt-0.5 shrink-0" />
+              <StatusBadge status={task.status} className="mt-0.5 shrink-0" />
             )}
           </div>
 
@@ -211,7 +208,11 @@ export function TaskCard({
               <TimeRangePicker
                 startTime={task.startTime}
                 endTime={task.endTime}
-                onChange={(s, e) => onUpdate(task.id, { startTime: s, endTime: e })}
+                startDate={task.startDate}
+                endDate={task.endDate}
+                onChange={(s, e, sd, ed) =>
+                  onUpdate(task.id, { startTime: s, endTime: e, startDate: sd, endDate: ed })
+                }
               />
             )}
 

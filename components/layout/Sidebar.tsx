@@ -3,7 +3,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { LayoutGrid, Layers, ChevronsLeft, ChevronsRight, CheckSquare } from 'lucide-react';
+import {
+  LayoutGrid,
+  Layers,
+  ChevronsLeft,
+  ChevronsRight,
+  CheckSquare,
+  History,
+} from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useTaskContext } from '@/context/TaskContext';
 import { CoffeeProgress } from '@/components/ui/CoffeeProgress';
@@ -53,6 +60,25 @@ export function Sidebar() {
             >
               <CheckSquare className="h-4 w-4 shrink-0" aria-hidden="true" />
               {!isCollapsed && 'Dashboard'}
+            </Link>
+          </li>
+
+          {/* History */}
+          <li>
+            <Link
+              href="/history"
+              title={isCollapsed ? 'Timer History' : undefined}
+              className={cn(
+                'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors',
+                isActive('/history')
+                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100',
+                isCollapsed && 'justify-center px-2',
+              )}
+              aria-current={isActive('/history') ? 'page' : undefined}
+            >
+              <History className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {!isCollapsed && 'Timer History'}
             </Link>
           </li>
 

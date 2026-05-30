@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import { ThemeProvider } from 'next-themes';
 import { Toaster } from 'sonner';
 import { TaskProvider } from '@/context/TaskContext';
+import { TimerProvider } from '@/context/TimerContext';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { OnboardingTour } from '@/components/ui/OnboardingTour';
@@ -27,23 +28,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </a>
         <ThemeProvider attribute="class" defaultTheme="light">
           <TaskProvider>
-            <div className="flex h-screen flex-col overflow-hidden bg-gray-50 dark:bg-gray-950">
-              <Header />
-              <div className="flex flex-1 overflow-hidden">
-                <div className="hidden md:flex md:shrink-0">
-                  <Sidebar />
+            <TimerProvider>
+              <div className="flex h-screen flex-col overflow-hidden bg-gray-50 dark:bg-gray-950">
+                <Header />
+                <div className="flex flex-1 overflow-hidden">
+                  <div className="hidden md:flex md:shrink-0">
+                    <Sidebar />
+                  </div>
+                  <main
+                    id="main-content"
+                    tabIndex={-1}
+                    className="flex-1 overflow-y-auto px-4 py-5 focus:outline-none sm:px-6"
+                  >
+                    <div className="mx-auto max-w-6xl">{children}</div>
+                  </main>
                 </div>
-                <main
-                  id="main-content"
-                  tabIndex={-1}
-                  className="flex-1 overflow-y-auto px-4 py-5 focus:outline-none sm:px-6"
-                >
-                  <div className="mx-auto max-w-6xl">{children}</div>
-                </main>
               </div>
-            </div>
-            <Toaster richColors position="top-right" />
-            <OnboardingTour />
+              <Toaster richColors position="top-right" />
+              <OnboardingTour />
+            </TimerProvider>
           </TaskProvider>
         </ThemeProvider>
       </body>

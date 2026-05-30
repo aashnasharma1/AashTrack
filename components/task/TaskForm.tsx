@@ -127,6 +127,8 @@ export function TaskForm({
               collection: defaultValues.collection,
               startTime: defaultValues.startTime ?? '',
               endTime: defaultValues.endTime ?? '',
+              startDate: defaultValues.startDate ?? '',
+              endDate: defaultValues.endDate ?? '',
             }
           : {
               title: '',
@@ -136,6 +138,8 @@ export function TaskForm({
               collection: lockedCollection ?? '',
               startTime: '',
               endTime: '',
+              startDate: '',
+              endDate: '',
             },
       );
     }
@@ -146,6 +150,8 @@ export function TaskForm({
   const collectionValue = watch('collection');
   const startTimeValue = watch('startTime');
   const endTimeValue = watch('endTime');
+  const startDateValue = watch('startDate');
+  const endDateValue = watch('endDate');
 
   const handleClose = () => {
     reset();
@@ -161,35 +167,35 @@ export function TaskForm({
   const collectionName = collections.find((c) => c.slug === collectionValue)?.name;
 
   return (
-    <Modal open={open} onClose={handleClose}>
+    <Modal open={open} onClose={handleClose} className="max-w-xl">
       <form onSubmit={handleSubmit(handleFormSubmit)} noValidate>
-        {/* Title input — prominent, no label */}
-        <div className="mb-3 pr-8">
+        {/* Title input */}
+        <div className="mb-4 pr-8">
           <input
             {...register('title')}
             placeholder="Task name"
             maxLength={TITLE_MAX}
             autoComplete="off"
-            className="w-full bg-transparent text-base font-semibold text-gray-900 outline-none placeholder:text-gray-300 dark:text-gray-100 dark:placeholder:text-gray-600"
+            className="w-full bg-transparent text-xl font-bold text-gray-900 outline-none placeholder:text-gray-300 dark:text-gray-100 dark:placeholder:text-gray-700"
           />
-          {errors.title && <p className="mt-1 text-xs text-red-500">{errors.title.message}</p>}
+          {errors.title && <p className="mt-1.5 text-xs text-red-500">{errors.title.message}</p>}
         </div>
 
-        {/* Description — secondary, borderless */}
-        <div className="mb-5">
+        {/* Description */}
+        <div className="mb-6">
           <textarea
             {...register('description')}
-            placeholder="Add description (optional)"
+            placeholder="Add a description…"
             maxLength={DESCRIPTION_MAX}
-            rows={2}
-            className="w-full resize-none bg-transparent text-sm text-gray-500 outline-none placeholder:text-gray-300 dark:text-gray-400 dark:placeholder:text-gray-600"
+            rows={3}
+            className="w-full resize-none bg-transparent text-sm leading-relaxed text-gray-500 outline-none placeholder:text-gray-300 dark:text-gray-400 dark:placeholder:text-gray-700"
           />
         </div>
 
         <div className="-mx-5 border-t border-gray-100 dark:border-gray-800" />
 
         {/* Field chips row */}
-        <div className="flex flex-wrap items-center gap-2 py-3">
+        <div className="flex flex-wrap items-center gap-2 py-4">
           {/* Status */}
           <FieldChip
             trigger={
@@ -320,9 +326,13 @@ export function TaskForm({
             <TimeRangePicker
               startTime={startTimeValue || undefined}
               endTime={endTimeValue || undefined}
-              onChange={(s, e) => {
+              startDate={startDateValue || undefined}
+              endDate={endDateValue || undefined}
+              onChange={(s, e, sd, ed) => {
                 setValue('startTime', s ?? '');
                 setValue('endTime', e ?? '');
+                setValue('startDate', sd ?? '');
+                setValue('endDate', ed ?? '');
               }}
             />
           </div>
@@ -336,18 +346,18 @@ export function TaskForm({
         <div className="-mx-5 border-t border-gray-100 dark:border-gray-800" />
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 pt-4">
+        <div className="flex items-center justify-end gap-3 pt-5">
           <button
             type="button"
             onClick={handleClose}
-            className="rounded-lg px-3 py-2 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+            className="rounded-lg px-4 py-2.5 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-300"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={isSubmitting}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 active:scale-95 disabled:opacity-50"
           >
             {isSubmitting ? '…' : isEditing ? 'Save Changes' : 'Create Task'}
           </button>

@@ -45,9 +45,10 @@ describe('taskSchema', () => {
   it('rejects invalid priority', () => {
     expect(taskSchema.safeParse({ ...valid, priority: 'urgent' }).success).toBe(false);
   });
-  it('accepts custom status strings (status is open-ended for custom groups)', () => {
+  it('accepts custom status values', () => {
     expect(taskSchema.safeParse({ ...valid, status: 'blocked' }).success).toBe(true);
   });
+
   it('rejects empty status', () => {
     expect(taskSchema.safeParse({ ...valid, status: '' }).success).toBe(false);
   });

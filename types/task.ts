@@ -54,6 +54,9 @@ export interface Task {
   /** "HH:MM" 24-hour time string, e.g. "09:30" */
   startTime?: string;
   endTime?: string;
+  /** "YYYY-MM-DD" date — optional. When absent the task is treated as "today". */
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface TaskFormValues {
@@ -64,6 +67,18 @@ export interface TaskFormValues {
   collection: string;
   startTime?: string;
   endTime?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+/** Partial update applied to an existing task via inline editors. */
+export interface TaskPatch {
+  title?: string;
+  priority?: Priority;
+  startTime?: string;
+  endTime?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 // ─── Filter / sort state ──────────────────────────────────────────────────────

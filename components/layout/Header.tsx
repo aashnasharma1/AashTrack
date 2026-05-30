@@ -8,6 +8,7 @@ import { MapPin } from 'lucide-react';
 import lightLogo from '@/app/public/images/logo_light.png';
 import darkLogo from '@/app/public/images/logo_dark.png';
 import { ThemeToggle } from './ThemeToggle';
+import { NavbarTimer } from './NavbarTimer';
 
 function usePageTitle(): string {
   const pathname = usePathname();
@@ -48,7 +49,8 @@ export function Header() {
       <h1 className="text-sm font-semibold text-gray-900 dark:text-gray-100 md:hidden">{title}</h1>
 
       {/* Right actions */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2">
+        <NavbarTimer />
         {pathname === '/' && (
           <button
             onClick={() => window.dispatchEvent(new CustomEvent('aashtrack:start-tour'))}

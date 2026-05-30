@@ -25,7 +25,7 @@ import { ChevronDown, ChevronRight, CircleDashed, Loader2, CheckCircle2 } from '
 import { cn } from '@/lib/cn';
 import { TaskListItem } from './TaskListItem';
 import { useTaskContext } from '@/context/TaskContext';
-import type { Collection, Priority, Status, Task, StatusGroup } from '@/types/task';
+import type { Collection, Status, Task, StatusGroup, TaskPatch } from '@/types/task';
 
 // Default icons for the 3 built-in statuses
 const DEFAULT_ICONS: Record<string, React.ElementType> = {
@@ -40,11 +40,9 @@ interface RowProps {
   task: Task;
   collections?: Collection[];
   onDelete: (id: string) => void;
-  onUpdate: (
-    id: string,
-    patch: { title?: string; priority?: Priority; startTime?: string; endTime?: string },
-  ) => void;
+  onUpdate: (id: string, patch: TaskPatch) => void;
   onStatusChange: (id: string, status: Status) => void;
+  onEdit?: (task: Task) => void;
 }
 
 function SortableTaskRow({ task, ...itemProps }: RowProps) {
@@ -72,8 +70,6 @@ function SortableTaskRow({ task, ...itemProps }: RowProps) {
 
 // ── Droppable group section ───────────────────────────────────────────────────
 
-type TaskPatch = { title?: string; priority?: Priority; startTime?: string; endTime?: string };
-
 interface GroupProps {
   group: StatusGroup;
   tasks: Task[];
@@ -81,6 +77,7 @@ interface GroupProps {
   onDelete: (id: string) => void;
   onUpdate: (id: string, patch: TaskPatch) => void;
   onStatusChange: (id: string, status: Status) => void;
+  onEdit?: (task: Task) => void;
   onCreateTask?: () => void;
 }
 
@@ -91,6 +88,7 @@ function DroppableGroup({
   onDelete,
   onUpdate,
   onStatusChange,
+  onEdit,
   onCreateTask,
 }: GroupProps) {
   const [collapsed, setCollapsed] = useState(false);
@@ -135,7 +133,7 @@ function DroppableGroup({
           role="rowgroup"
         >
           {/* Column headers */}
-          <div className="grid grid-cols-[20px_1fr_112px_52px_88px_28px] items-center gap-2 border-b border-gray-50 px-3 py-1.5 dark:border-gray-800">
+          <div className="grid grid-cols-[20px_1fr_112px_52px_88px_56px] items-center gap-2 border-b border-gray-50 px-3 py-1.5 dark:border-gray-800">
             <span />
             <span className="text-xs font-medium text-gray-400 dark:text-gray-600">Name</span>
             <span className="text-xs font-medium text-gray-400 dark:text-gray-600">Schedule</span>
@@ -179,6 +177,7 @@ function DroppableGroup({
                     onDelete={onDelete}
                     onUpdate={onUpdate}
                     onStatusChange={onStatusChange}
+                    onEdit={onEdit}
                   />
                 </div>
               ))}
@@ -196,11 +195,9 @@ interface TaskGroupedProps {
   tasks: Task[];
   collections: Collection[];
   onDelete: (id: string) => void;
-  onUpdate: (
-    id: string,
-    patch: { title?: string; priority?: Priority; startTime?: string; endTime?: string },
-  ) => void;
+  onUpdate: (id: string, patch: TaskPatch) => void;
   onStatusChange: (id: string, status: Status) => void;
+  onEdit?: (task: Task) => void;
   onReorder?: (reordered: Task[]) => void;
   onCreateTask?: () => void;
 }
@@ -211,6 +208,7 @@ export function TaskGrouped({
   onDelete,
   onUpdate,
   onStatusChange,
+  onEdit,
   onReorder,
   onCreateTask,
 }: TaskGroupedProps) {
@@ -281,6 +279,7 @@ export function TaskGrouped({
               onDelete={onDelete}
               onUpdate={onUpdate}
               onStatusChange={onStatusChange}
+              onEdit={onEdit}
               onCreateTask={onCreateTask}
             />
           ))}

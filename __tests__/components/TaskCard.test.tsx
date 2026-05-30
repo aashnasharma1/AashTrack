@@ -1,11 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import type { ReactNode } from 'react';
-import { TaskProvider } from '@/context/TaskContext';
+import type { ComponentProps } from 'react';
 import { TaskCard } from '@/components/task/TaskCard';
+import { TaskProvider } from '@/context/TaskContext';
 import type { Task } from '@/types/task';
-
-const wrapper = ({ children }: { children: ReactNode }) => <TaskProvider>{children}</TaskProvider>;
 
 const mockTask: Task = {
   id: 'task_1',
@@ -33,57 +31,99 @@ vi.mock('@dnd-kit/utilities', () => ({
 }));
 
 describe('TaskCard', () => {
+  const renderCard = (props: Partial<ComponentProps<typeof TaskCard>> = {}) =>
+    render(
+      <TaskProvider>
+        <TaskCard task={mockTask} onEdit={vi.fn()} onDelete={vi.fn()} {...props} />
+      </TaskProvider>,
+    );
+
   it('renders title', () => {
-    render(<TaskCard task={mockTask} onDelete={vi.fn()} />, { wrapper });
+    renderCard();
     expect(screen.getByText('Fix login bug')).toBeInTheDocument();
   });
 
-  it('renders high priority aria-label', () => {
-    render(<TaskCard task={mockTask} onDelete={vi.fn()} onUpdate={vi.fn()} />, { wrapper });
-    expect(screen.getByLabelText(/high priority/i)).toBeInTheDocument();
+  it('renders priority badge', () => {
+    renderCard({ onUpdate: vi.fn() });
+    expect(screen.getByLabelText('High priority')).toBeInTheDocument();
   });
 
   it('renders status badge', () => {
-    render(<TaskCard task={mockTask} onDelete={vi.fn()} />, { wrapper });
-    expect(screen.getByText('In Progress')).toBeInTheDocument();
+    renderCard();
+    expect(screen.getByText('in-progress')).toBeInTheDocument();
   });
 
-  it('renders collection name when collections provided', () => {
-    const collections = [
-      { id: 'c1', name: 'Work', slug: 'work', createdAt: new Date().toISOString() },
-    ];
-    const task = { ...mockTask, collection: 'work' };
-    render(<TaskCard task={task} collections={collections} onDelete={vi.fn()} />, { wrapper });
+  it('renders collection label', () => {
+    renderCard({
+      collections: [{ id: '1', name: 'Work', slug: 'Work', createdAt: new Date().toISOString() }],
+    });
     expect(screen.getByText('Work')).toBeInTheDocument();
   });
 
+  it('calls onEdit when edit clicked', () => {
+    const onEdit = vi.fn();
+    renderCard({ onEdit });
+    fireEvent.click(screen.getByText('Fix login bug'));
+    expect(onEdit).toHaveBeenCalledWith(mockTask);
+  });
+
+  it('edits title inline when update handler is provided', () => {
+    const onUpdate = vi.fn();
+    renderCard({ onUpdate });
+
+    fireEvent.click(screen.getByText('Fix login bug'));
+    const input = screen.getByDisplayValue('Fix login bug');
+    fireEvent.change(input, { target: { value: 'Fix signup bug' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(onUpdate).toHaveBeenCalledWith(mockTask.id, { title: 'Fix signup bug' });
+  });
+
   it('shows confirm hint on first delete click', () => {
-    render(<TaskCard task={mockTask} onDelete={vi.fn()} />, { wrapper });
+    renderCard();
     fireEvent.click(screen.getByLabelText(/delete task/i));
     expect(screen.getByText(/click delete again to confirm/i)).toBeInTheDocument();
   });
 
   it('calls onDelete on second delete click', () => {
     const onDelete = vi.fn();
-    render(<TaskCard task={mockTask} onDelete={onDelete} />, { wrapper });
+    renderCard({ onDelete });
     fireEvent.click(screen.getByLabelText(/delete task/i));
     fireEvent.click(screen.getByLabelText(/click again to confirm/i));
     expect(onDelete).toHaveBeenCalledWith(mockTask.id);
   });
 
   it('shows drag handle when drag enabled', () => {
-    render(<TaskCard task={mockTask} onDelete={vi.fn()} isDragDisabled={false} />, { wrapper });
+    renderCard({ isDragDisabled: false });
     expect(screen.getByLabelText(/drag to reorder/i)).toBeInTheDocument();
   });
 
   it('hides drag handle when disabled', () => {
-    render(<TaskCard task={mockTask} onDelete={vi.fn()} isDragDisabled />, { wrapper });
+    renderCard({ isDragDisabled: true });
     expect(screen.queryByLabelText(/drag to reorder/i)).not.toBeInTheDocument();
   });
 
-  it('truncates long descriptions and shows expand button', () => {
+  it('truncates long descriptions', () => {
     const task = { ...mockTask, description: 'a'.repeat(200) };
-    render(<TaskCard task={task} onDelete={vi.fn()} />, { wrapper });
+    renderCard({ task });
     expect(screen.getByText(/show more/i)).toBeInTheDocument();
+  });
+
+  it('expands and collapses long descriptions', () => {
+    const task = { ...mockTask, description: 'a'.repeat(200) };
+    renderCard({ task });
+
+    fireEvent.click(screen.getByText(/show more/i));
+    expect(screen.getByText(/show less/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/show less/i));
+    expect(screen.getByText(/show more/i)).toBeInTheDocument();
+  });
+
+  it('cycles status with the clickable status badge', () => {
+    const onStatusChange = vi.fn();
+    renderCard({ onStatusChange });
+
+    fireEvent.click(screen.getByRole('button', { name: /status: in progress/i }));
+    expect(onStatusChange).toHaveBeenCalledWith(mockTask.id, 'done');
   });
 });

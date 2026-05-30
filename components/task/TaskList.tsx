@@ -15,11 +15,17 @@ import { EmptyState } from './EmptyState';
 import { Button } from '@/components/ui/Button';
 import { KeyboardShortcuts } from '@/components/ui/KeyboardShortcuts';
 import { cn } from '@/lib/cn';
+import { filterAndSortTasks } from '@/utils/taskUtils';
 import type { Task, TaskFormValues, Status, Priority } from '@/types/task';
 
 type ViewMode = 'grouped' | 'board' | 'table';
 
-export function TaskList() {
+interface TaskListProps {
+  /** When set, locks the view to a single collection (used by collection detail pages). */
+  lockedCollection?: string;
+}
+
+export function TaskList({ lockedCollection }: TaskListProps = {}) {
   const {
     tasks,
     filteredTasks,
@@ -48,47 +54,50 @@ export function TaskList() {
   const [search, setSearch] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // Sync URL → filter state on mount
+  // Sync URL → filter state on mount (skipped when collection is locked)
   useEffect(() => {
+    if (lockedCollection) return;
     const status = searchParams.get('status') as Status | null;
     const priority = searchParams.get('priority') as Priority | null;
     const collection = searchParams.get('collection') ?? '';
-    const anySet = status || priority || collection;
-    if (anySet) {
-      setFilter({
-        status: status ?? '',
-        priority: priority ?? '',
-        collection,
-      });
+    if (status || priority || collection) {
+      setFilter({ status: status ?? '', priority: priority ?? '', collection });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally only on mount
 
-  // Sync filter state → URL
+  // Sync filter state → URL (skipped when collection is locked)
   useEffect(() => {
+    if (lockedCollection) return;
     const params = new URLSearchParams();
     if (filter.status) params.set('status', filter.status);
     if (filter.priority) params.set('priority', filter.priority);
     if (filter.collection) params.set('collection', filter.collection);
     const qs = params.toString();
-    const target = qs ? `${pathname}?${qs}` : pathname;
-    router.replace(target, { scroll: false });
-  }, [filter, pathname, router]);
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [filter, pathname, router, lockedCollection]);
 
+  // When locked: filter tasks to this collection then apply status/priority
   const displayTasks = useMemo(() => {
-    if (!search.trim()) return filteredTasks;
+    let base: Task[];
+    if (lockedCollection) {
+      const scoped = tasks.filter((t) => t.collection === lockedCollection);
+      base = filterAndSortTasks(scoped, { ...filter, collection: '' }, sort);
+    } else {
+      base = filteredTasks;
+    }
+    if (!search.trim()) return base;
     const q = search.toLowerCase();
-    return filteredTasks.filter(
+    return base.filter(
       (t) => t.title.toLowerCase().includes(q) || t.description.toLowerCase().includes(q),
     );
-  }, [filteredTasks, search]);
+  }, [tasks, filteredTasks, filter, sort, lockedCollection, search]);
 
   const openCreate = useCallback(() => {
     setEditingTask(undefined);
     setModalOpen(true);
   }, []);
 
-  // Global keyboard shortcut: N = new task, ? = shortcuts
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (modalOpen) return;
@@ -146,16 +155,16 @@ export function TaskList() {
       collection: task.collection,
       startTime: task.startTime,
       endTime: task.endTime,
+      startDate: task.startDate,
+      endDate: task.endDate,
     });
-    toast.success(
-      `Marked as ${status === 'in-progress' ? 'In Progress' : status === 'done' ? 'Done' : 'To Do'}`,
-    );
+    toast.success(`Status updated`);
   };
 
   const handleGroupedReorder = useCallback(
     (reordered: Task[]) => {
-      const reorderedIds = new Set(reordered.map((t) => t.id));
-      const others = tasks.filter((t) => !reorderedIds.has(t.id));
+      const ids = new Set(reordered.map((t) => t.id));
+      const others = tasks.filter((t) => !ids.has(t.id));
       reorderTasks([...reordered, ...others]);
       setSort({ sortBy: 'manual', sortOrder: 'asc' });
     },
@@ -183,15 +192,21 @@ export function TaskList() {
     [tasks, updateTask],
   );
 
+  // When locked, don't show the collection filter chip
+  const filterBarCollections = lockedCollection ? [] : collections;
+  const effectiveIsFiltered = lockedCollection
+    ? filter.status !== '' || filter.priority !== '' || !!search
+    : isFiltered || !!search;
+
   return (
     <div className="flex flex-col gap-5">
-      {/* Toolbar row 1: filter chips + view controls */}
+      {/* Toolbar row 1 */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div data-tour="filter-bar">
           <FilterBar
             filter={filter}
             sort={sort}
-            collections={collections}
+            collections={filterBarCollections}
             isSearchActive={search !== ''}
             onFilterChange={setFilter}
             onSortChange={setSort}
@@ -202,7 +217,6 @@ export function TaskList() {
           />
         </div>
         <div className="flex items-center gap-2">
-          {/* View toggle */}
           <div
             data-tour="view-toggle"
             className="flex items-center rounded-lg border border-gray-200 bg-white p-0.5 dark:border-gray-700 dark:bg-gray-900"
@@ -231,15 +245,17 @@ export function TaskList() {
               </button>
             ))}
           </div>
-          <button
-            data-tour="shortcuts"
-            onClick={() => setShortcutsOpen(true)}
-            aria-label="Keyboard shortcuts (?)"
-            title="Keyboard shortcuts (?)"
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-500 transition-colors hover:border-gray-300 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:hover:text-gray-300"
-          >
-            ?
-          </button>
+          {!lockedCollection && (
+            <button
+              data-tour="shortcuts"
+              onClick={() => setShortcutsOpen(true)}
+              aria-label="Keyboard shortcuts (?)"
+              title="Keyboard shortcuts (?)"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-500 transition-colors hover:border-gray-300 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:hover:text-gray-300"
+            >
+              ?
+            </button>
+          )}
           <Button
             data-tour="new-task"
             onClick={openCreate}
@@ -283,22 +299,20 @@ export function TaskList() {
           )}
         </div>
         <div className="ml-auto">
-          {viewMode === 'grouped' && (
-            <button
-              type="button"
-              onClick={() => setManagerOpen(true)}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-            >
-              <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />
-              Manage categories
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setManagerOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+          >
+            <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />
+            Manage categories
+          </button>
         </div>
       </div>
 
       {displayTasks.length === 0 ? (
         <EmptyState
-          isFiltered={isFiltered || !!search}
+          isFiltered={effectiveIsFiltered}
           onClearFilters={() => {
             clearFilters();
             setSearch('');
@@ -306,17 +320,16 @@ export function TaskList() {
           onCreateTask={openCreate}
         />
       ) : viewMode === 'board' ? (
-        /* ── Board view ── */
         <TaskBoard
           tasks={displayTasks}
           collections={collections}
           onDelete={handleDelete}
           onUpdate={handleUpdate}
           onStatusChange={handleStatusChange}
+          onEdit={openEdit}
           onCreateTask={openCreate}
         />
       ) : viewMode === 'table' ? (
-        /* ── Table view ── */
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
           <table className="w-full" role="table" aria-label="Task list">
             <thead>
@@ -365,12 +378,14 @@ export function TaskList() {
                 >
                   Priority
                 </th>
-                <th
-                  scope="col"
-                  className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500"
-                >
-                  Collection
-                </th>
+                {!lockedCollection && (
+                  <th
+                    scope="col"
+                    className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500"
+                  >
+                    Collection
+                  </th>
+                )}
                 <th
                   scope="col"
                   className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500"
@@ -396,13 +411,13 @@ export function TaskList() {
           </table>
         </div>
       ) : (
-        /* ── Grouped view (default) ── */
         <TaskGrouped
           tasks={displayTasks}
           collections={collections}
           onDelete={handleDelete}
           onUpdate={handleUpdate}
           onStatusChange={handleStatusChange}
+          onEdit={openEdit}
           onReorder={handleGroupedReorder}
           onCreateTask={openCreate}
         />
@@ -414,11 +429,14 @@ export function TaskList() {
         onSubmit={handleSubmit}
         defaultValues={editingTask}
         collections={collections}
+        lockedCollection={lockedCollection}
       />
 
       <StatusGroupManager open={managerOpen} onClose={() => setManagerOpen(false)} />
 
-      <KeyboardShortcuts open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      {!lockedCollection && (
+        <KeyboardShortcuts open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      )}
     </div>
   );
 }
