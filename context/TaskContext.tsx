@@ -9,7 +9,9 @@ import {
   useCallback,
   type ReactNode,
 } from 'react';
+import { z } from 'zod';
 import { taskReducer, initialState, type TaskAction } from '@/lib/taskReducer';
+import { readStorage, writeStorage } from '@/lib/storage';
 import type {
   TasksState,
   Collection,
@@ -19,43 +21,80 @@ import type {
   SortState,
   StatusGroup,
 } from '@/types/task';
+import { PRIORITIES, SORT_BY_OPTIONS, SORT_ORDER_OPTIONS } from '@/types/task';
 
 const STORAGE_KEY = 'aashtrack_v2';
 
+const recurrenceSchema = z.object({
+  frequency: z.enum(['daily', 'weekdays', 'weekends', 'weekly', 'custom']),
+  customDays: z.array(z.number().int().min(0).max(6)),
+  occurrences: z.number().int().positive(),
+});
+
+const collectionSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  createdAt: z.string(),
+});
+
+const statusGroupSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  color: z.string(),
+  isDefault: z.boolean(),
+});
+
+const taskSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string(),
+  priority: z.enum(PRIORITIES),
+  status: z.string(),
+  createdAt: z.string(),
+  order: z.number(),
+  collection: z.string(),
+  startTime: z.string().optional(),
+  endTime: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  recurring: z.boolean().optional(),
+  recurrence: recurrenceSchema.optional(),
+});
+
+const sortSchema = z.object({
+  sortBy: z.enum(SORT_BY_OPTIONS),
+  sortOrder: z.enum(SORT_ORDER_OPTIONS),
+});
+
+const persistedTasksSchema = z.object({
+  collections: z.array(collectionSchema).optional(),
+  statusGroups: z.array(statusGroupSchema).optional(),
+  tasks: z.array(taskSchema).optional(),
+  sort: sortSchema.optional(),
+});
+
 function load(): TasksState {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return initialState;
-    const parsed = JSON.parse(raw) as Partial<TasksState>;
-    return {
-      collections: Array.isArray(parsed.collections) ? parsed.collections : [],
-      statusGroups:
-        Array.isArray(parsed.statusGroups) && parsed.statusGroups.length > 0
-          ? parsed.statusGroups
-          : initialState.statusGroups,
-      tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
-      filter: initialState.filter,
-      sort: parsed.sort ?? initialState.sort,
-    };
-  } catch {
-    return initialState;
-  }
+  const parsed = readStorage(STORAGE_KEY, persistedTasksSchema, {});
+  return {
+    collections: parsed.collections ?? [],
+    statusGroups:
+      parsed.statusGroups && parsed.statusGroups.length > 0
+        ? parsed.statusGroups
+        : initialState.statusGroups,
+    tasks: parsed.tasks ?? [],
+    filter: initialState.filter,
+    sort: parsed.sort ?? initialState.sort,
+  };
 }
 
 function save(state: TasksState): void {
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        collections: state.collections,
-        statusGroups: state.statusGroups,
-        tasks: state.tasks,
-        sort: state.sort,
-      }),
-    );
-  } catch {
-    // quota exceeded or unavailable — silently continue
-  }
+  writeStorage(STORAGE_KEY, {
+    collections: state.collections,
+    statusGroups: state.statusGroups,
+    tasks: state.tasks,
+    sort: state.sort,
+  });
 }
 
 interface TaskContextValue {

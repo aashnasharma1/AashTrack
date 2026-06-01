@@ -8,7 +8,7 @@ describe('TimeRangePicker', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-05-15T12:00:00Z'));
+    vi.setSystemTime(new Date(2026, 4, 15, 17, 30, 0));
   });
 
   afterEach(() => {
@@ -158,11 +158,10 @@ describe('TimeRangePicker', () => {
 
     expect(screen.getByText(/earliest available/i)).toBeInTheDocument();
 
-    const buttons = screen.getAllByRole('button');
-    fireEvent.click(buttons[7]); // hour up
+    fireEvent.click(screen.getByRole('button', { name: /increase start hour/i }));
     expect(onChange).toHaveBeenCalledWith('18:30', '19:00', '2026-05-15', '2026-05-15');
 
-    fireEvent.click(buttons[9]); // minute up
+    fireEvent.click(screen.getByRole('button', { name: /increase start minute/i }));
     expect(onChange).toHaveBeenLastCalledWith('18:45', '19:15', '2026-05-15', '2026-05-15');
   });
 

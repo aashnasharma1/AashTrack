@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { z } from 'zod';
 import { useTaskContext } from '@/context/TaskContext';
+import { readStorage, writeStorage } from '@/lib/storage';
 import type { Task } from '@/types/task';
 
 const STORAGE_KEY = 'aashtrack_coffee_v1';
@@ -13,6 +15,15 @@ interface CoffeeState {
 }
 
 const DEFAULT: CoffeeState = { goal: 5, progress: 0, celebrated: false };
+
+const coffeeStateSchema = z
+  .object({
+    goal: z.number().transform((goal) => Math.max(1, goal)),
+    progress: z.number(),
+    celebrated: z.boolean(),
+  })
+  .partial()
+  .transform((value): CoffeeState => ({ ...DEFAULT, ...value }));
 
 export function useCoffeeTracker() {
   const {
@@ -27,20 +38,7 @@ export function useCoffeeTracker() {
   // Hydrate from localStorage on mount
   useEffect(() => {
     setMounted(true);
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<CoffeeState>;
-        setCoffeeState({
-          goal: typeof parsed.goal === 'number' ? Math.max(1, parsed.goal) : DEFAULT.goal,
-          progress: typeof parsed.progress === 'number' ? parsed.progress : DEFAULT.progress,
-          celebrated:
-            typeof parsed.celebrated === 'boolean' ? parsed.celebrated : DEFAULT.celebrated,
-        });
-      }
-    } catch {
-      // ignore
-    }
+    setCoffeeState(readStorage(STORAGE_KEY, coffeeStateSchema, DEFAULT));
     // Snapshot current tasks so we don't count existing done tasks as "new"
     prevTasksRef.current = tasks;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -49,11 +47,7 @@ export function useCoffeeTracker() {
   // Persist state
   useEffect(() => {
     if (!mounted) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(coffeeState));
-    } catch {
-      // ignore
-    }
+    writeStorage(STORAGE_KEY, coffeeState);
   }, [coffeeState, mounted]);
 
   // Detect task → 'done' transitions

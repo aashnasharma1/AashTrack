@@ -206,6 +206,7 @@ export function TimeRangePicker({
               <div className="flex flex-col items-center gap-0.5">
                 <button
                   type="button"
+                  aria-label="Increase start hour"
                   onClick={() => {
                     const raw =
                       ((Math.floor(safeStartMin / 60) + 1) % 24) * 60 + (safeStartMin % 60);
@@ -222,6 +223,7 @@ export function TimeRangePicker({
                 </span>
                 <button
                   type="button"
+                  aria-label="Decrease start hour"
                   onClick={() => {
                     const raw =
                       ((Math.floor(safeStartMin / 60) - 1 + 24) % 24) * 60 + (safeStartMin % 60);
@@ -239,6 +241,7 @@ export function TimeRangePicker({
               <div className="flex flex-col items-center gap-0.5">
                 <button
                   type="button"
+                  aria-label="Increase start minute"
                   onClick={() => {
                     const raw =
                       Math.floor(safeStartMin / 60) * 60 + (((safeStartMin % 60) + 15) % 60);
@@ -255,6 +258,7 @@ export function TimeRangePicker({
                 </span>
                 <button
                   type="button"
+                  aria-label="Decrease start minute"
                   onClick={() => {
                     const raw =
                       Math.floor(safeStartMin / 60) * 60 + (((safeStartMin % 60) - 15 + 60) % 60);
@@ -434,6 +438,7 @@ export function TimeRangePicker({
                   <div className="flex flex-col items-center gap-0.5">
                     <button
                       type="button"
+                      aria-label="Increase start hour"
                       onClick={() => {
                         const raw =
                           ((Math.floor(safeStartMin / 60) + 1) % 24) * 60 + (safeStartMin % 60);
@@ -450,6 +455,7 @@ export function TimeRangePicker({
                     </span>
                     <button
                       type="button"
+                      aria-label="Decrease start hour"
                       onClick={() => {
                         const raw =
                           ((Math.floor(safeStartMin / 60) - 1 + 24) % 24) * 60 +
@@ -470,6 +476,7 @@ export function TimeRangePicker({
                   <div className="flex flex-col items-center gap-0.5">
                     <button
                       type="button"
+                      aria-label="Increase start minute"
                       onClick={() => {
                         const raw =
                           Math.floor(safeStartMin / 60) * 60 + (((safeStartMin % 60) + 15) % 60);
@@ -486,6 +493,7 @@ export function TimeRangePicker({
                     </span>
                     <button
                       type="button"
+                      aria-label="Decrease start minute"
                       onClick={() => {
                         const raw =
                           Math.floor(safeStartMin / 60) * 60 +

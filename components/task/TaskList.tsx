@@ -18,7 +18,7 @@ import { KeyboardShortcuts } from '@/components/ui/KeyboardShortcuts';
 import { cn } from '@/lib/cn';
 import { filterAndSortTasks } from '@/utils/taskUtils';
 import { resolveScheduleConflicts } from '@/lib/scheduling';
-import type { Task, TaskFormValues, Status, Priority } from '@/types/task';
+import { isPriority, type Task, type TaskFormValues } from '@/types/task';
 
 type ViewMode = 'grouped' | 'board' | 'table';
 
@@ -59,11 +59,12 @@ export function TaskList({ lockedCollection }: TaskListProps = {}) {
   // Sync URL → filter state on mount (skipped when collection is locked)
   useEffect(() => {
     if (lockedCollection) return;
-    const status = searchParams.get('status') as Status | null;
-    const priority = searchParams.get('priority') as Priority | null;
+    const status = searchParams.get('status') ?? '';
+    const priorityParam = searchParams.get('priority');
+    const priority = isPriority(priorityParam) ? priorityParam : '';
     const collection = searchParams.get('collection') ?? '';
     if (status || priority || collection) {
-      setFilter({ status: status ?? '', priority: priority ?? '', collection });
+      setFilter({ status, priority, collection });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally only on mount

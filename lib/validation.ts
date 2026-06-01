@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PRIORITIES } from '@/types/task';
 import { todayISO } from './timeUtils';
 
 export const TITLE_MAX = 30;
@@ -15,7 +16,7 @@ export const taskSchema = z
     description: z
       .string()
       .max(DESCRIPTION_MAX, `Task description cannot exceed ${DESCRIPTION_MAX} characters.`),
-    priority: z.enum(['low', 'medium', 'high'] as const, {
+    priority: z.enum(PRIORITIES, {
       message: 'Please select a priority',
     }),
     status: z.string().min(1, 'Please select a status'),

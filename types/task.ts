@@ -1,18 +1,25 @@
 // ─── Core enums ───────────────────────────────────────────────────────────────
 
+export const PRIORITIES = ['low', 'medium', 'high'] as const;
 export const PRIORITY = { low: 'low', medium: 'medium', high: 'high' } as const;
+export const SORT_BY_OPTIONS = ['createdAt', 'priority', 'title', 'manual'] as const;
 export const SORT_BY = {
   createdAt: 'createdAt',
   priority: 'priority',
   title: 'title',
   manual: 'manual',
 } as const;
+export const SORT_ORDER_OPTIONS = ['asc', 'desc'] as const;
 export const SORT_ORDER = { asc: 'asc', desc: 'desc' } as const;
 
-export type Priority = keyof typeof PRIORITY;
+export type Priority = (typeof PRIORITIES)[number];
 export type Status = string; // relaxed to string to support custom status groups
-export type SortBy = keyof typeof SORT_BY;
-export type SortOrder = keyof typeof SORT_ORDER;
+export type SortBy = (typeof SORT_BY_OPTIONS)[number];
+export type SortOrder = (typeof SORT_ORDER_OPTIONS)[number];
+
+export function isPriority(value: unknown): value is Priority {
+  return PRIORITIES.some((priority) => priority === value);
+}
 
 // ─── Status group ─────────────────────────────────────────────────────────────
 

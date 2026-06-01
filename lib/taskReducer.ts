@@ -38,6 +38,22 @@ export const initialState: TasksState = {
   sort: { sortBy: 'createdAt', sortOrder: 'desc' },
 };
 
+function normalizeTaskFields(values: TaskFormValues) {
+  return {
+    title: values.title.trim(),
+    description: values.description.trim(),
+    priority: values.priority,
+    status: values.status,
+    collection: values.collection.trim(),
+    startTime: values.startTime || undefined,
+    endTime: values.endTime || undefined,
+    startDate: values.startDate || undefined,
+    endDate: values.endDate || undefined,
+    recurring: values.recurring || undefined,
+    recurrence: values.recurrence || undefined,
+  };
+}
+
 export function taskReducer(state: TasksState, action: TaskAction): TasksState {
   switch (action.type) {
     case 'HYDRATE':
@@ -79,19 +95,9 @@ export function taskReducer(state: TasksState, action: TaskAction): TasksState {
     case 'ADD_TASK': {
       const task: Task = {
         id: generateId(),
-        title: action.payload.title.trim(),
-        description: action.payload.description.trim(),
-        priority: action.payload.priority,
-        status: action.payload.status,
-        collection: action.payload.collection.trim(),
         createdAt: new Date().toISOString(),
         order: state.tasks.length,
-        startTime: action.payload.startTime || undefined,
-        endTime: action.payload.endTime || undefined,
-        startDate: action.payload.startDate || undefined,
-        endDate: action.payload.endDate || undefined,
-        recurring: action.payload.recurring || undefined,
-        recurrence: action.payload.recurrence || undefined,
+        ...normalizeTaskFields(action.payload),
       };
       return { ...state, tasks: [...state.tasks, task] };
     }
@@ -103,17 +109,7 @@ export function taskReducer(state: TasksState, action: TaskAction): TasksState {
           t.id === action.payload.id
             ? {
                 ...t,
-                title: action.payload.title.trim(),
-                description: action.payload.description.trim(),
-                priority: action.payload.priority,
-                status: action.payload.status,
-                collection: action.payload.collection.trim(),
-                startTime: action.payload.startTime || undefined,
-                endTime: action.payload.endTime || undefined,
-                startDate: action.payload.startDate || undefined,
-                endDate: action.payload.endDate || undefined,
-                recurring: action.payload.recurring || undefined,
-                recurrence: action.payload.recurrence || undefined,
+                ...normalizeTaskFields(action.payload),
               }
             : t,
         ),

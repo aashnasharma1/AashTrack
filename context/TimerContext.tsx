@@ -1,6 +1,8 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { z } from 'zod';
+import { readStorage, writeStorage } from '@/lib/storage';
 
 const STORAGE_KEY = 'aashtrack_timer_v1';
 
@@ -30,6 +32,23 @@ const EMPTY: TimerState = {
   history: [],
 };
 
+const timerStateSchema = z.object({
+  activeTaskId: z.string().nullable(),
+  activeTaskTitle: z.string(),
+  isPaused: z.boolean(),
+  startedAt: z.number().nullable(),
+  elapsedSecs: z.number(),
+  history: z.array(
+    z.object({
+      id: z.string(),
+      taskId: z.string(),
+      taskTitle: z.string(),
+      durationSecs: z.number(),
+      stoppedAt: z.string(),
+    }),
+  ),
+});
+
 interface TimerContextValue {
   activeTaskId: string | null;
   activeTaskTitle: string;
@@ -53,17 +72,12 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setMounted(true);
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setState(JSON.parse(raw) as TimerState);
-    } catch {
-      /* ignore */
-    }
+    setState(readStorage(STORAGE_KEY, timerStateSchema, EMPTY));
   }, []);
 
   useEffect(() => {
     if (!mounted) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    writeStorage(STORAGE_KEY, state);
   }, [state, mounted]);
 
   useEffect(() => {
