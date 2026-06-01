@@ -1,208 +1,40 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Clock, ChevronUp, ChevronDown, CalendarDays } from 'lucide-react';
+import { Clock, ChevronUp, ChevronDown } from 'lucide-react';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { cn } from '@/lib/cn';
 
-type HM = { h: number; m: number };
+const DURATION_OPTS = [
+  { label: '5 min', minutes: 5 },
+  { label: '10 min', minutes: 10 },
+  { label: '30 min', minutes: 30 },
+  { label: '1 hr', minutes: 60 },
+  { label: '2 hr', minutes: 120 },
+  { label: '4 hr', minutes: 240 },
+] as const;
 
-function parse(t?: string): HM {
-  if (!t) return { h: 9, m: 0 };
-  const [hStr, mStr] = t.split(':');
-  return { h: parseInt(hStr ?? '9', 10), m: parseInt(mStr ?? '0', 10) };
-}
-
-function fmt({ h, m }: HM) {
+function toHHMM(totalMin: number): string {
+  const h = Math.floor(totalMin / 60) % 24;
+  const m = totalMin % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-/** "YYYY-MM-DD" → short "Mon D" for compact display */
-function fmtDateShort(d?: string): string {
-  if (!d) return '';
-  const dt = new Date(`${d}T00:00:00`);
-  if (isNaN(dt.getTime())) return '';
-  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+function fromHHMM(t: string): number {
+  const [hs = '0', ms = '0'] = t.split(':');
+  return parseInt(hs, 10) * 60 + parseInt(ms, 10);
 }
 
-const PRESETS = [
-  { label: 'Morning', h: 9, m: 0 },
-  { label: 'Midday', h: 12, m: 0 },
-  { label: 'Afternoon', h: 15, m: 0 },
-  { label: 'Evening', h: 18, m: 0 },
-  { label: 'Night', h: 21, m: 0 },
-] as const;
-
-function Spinner({ value, onInc, onDec }: { value: number; onInc: () => void; onDec: () => void }) {
-  return (
-    <div className="flex flex-col items-center gap-0.5">
-      <button
-        type="button"
-        tabIndex={-1}
-        onClick={onInc}
-        className="flex h-6 w-8 items-center justify-center rounded transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
-      >
-        <ChevronUp className="h-3.5 w-3.5 text-gray-400" />
-      </button>
-      <span className="flex h-9 w-9 select-none items-center justify-center rounded-lg bg-gray-50 font-mono text-lg font-bold text-gray-800 dark:bg-gray-700 dark:text-gray-100">
-        {String(value).padStart(2, '0')}
-      </span>
-      <button
-        type="button"
-        tabIndex={-1}
-        onClick={onDec}
-        className="flex h-6 w-8 items-center justify-center rounded transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
-      >
-        <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
-      </button>
-    </div>
-  );
+function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-interface PanelProps {
-  start: HM;
-  end: HM;
-  startDate?: string;
-  endDate?: string;
-  activeTab: 'start' | 'end';
-  onTabChange: (t: 'start' | 'end') => void;
-  onSetTime: (v: HM) => void;
-  onSetDate: (d: string | undefined) => void;
-  onClear: () => void;
-  onDone?: () => void;
-}
-
-function PickerPanel({
-  start,
-  end,
-  startDate,
-  endDate,
-  activeTab,
-  onTabChange,
-  onSetTime,
-  onSetDate,
-  onClear,
-  onDone,
-}: PanelProps) {
-  const active = activeTab === 'start' ? start : end;
-  const activeDate = activeTab === 'start' ? startDate : endDate;
-
-  const startTotalMin = start.h * 60 + start.m;
-  const endTotalMin = end.h * 60 + end.m;
-  // Next-day if explicit end date is after start date, or (no dates) end time wraps past start
-  const endIsNextDay =
-    endDate && startDate
-      ? endDate > startDate
-      : !startDate && !endDate && endTotalMin < startTotalMin;
-
-  return (
-    <div className="w-72 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
-      {/* Tabs — Start / End */}
-      <div className="grid grid-cols-2 border-b border-gray-100 dark:border-gray-800">
-        {(['start', 'end'] as const).map((tab) => {
-          const val = tab === 'start' ? start : end;
-          const active_ = activeTab === tab;
-          return (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => onTabChange(tab)}
-              className={cn(
-                'flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors',
-                active_
-                  ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
-                  : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300',
-              )}
-            >
-              <Clock className="h-3 w-3" aria-hidden="true" />
-              {tab === 'start' ? 'Start' : 'End'} ·{' '}
-              <span className="font-mono tabular-nums">{fmt(val)}</span>
-              {tab === 'end' && endIsNextDay && (
-                <span className="rounded-full bg-amber-100 px-1 py-px text-[9px] font-bold text-amber-600 dark:bg-amber-950/60 dark:text-amber-400">
-                  +1
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Body: presets + spinner */}
-      <div className="flex">
-        <div className="flex-1 border-r border-gray-50 py-1 dark:border-gray-800">
-          {PRESETS.map((p) => (
-            <button
-              key={p.label}
-              type="button"
-              onClick={() => onSetTime({ h: p.h, m: p.m })}
-              className="flex w-full items-center justify-between px-4 py-2 text-xs transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
-            >
-              <span className="text-gray-700 dark:text-gray-300">{p.label}</span>
-              <span className="font-mono tabular-nums text-gray-400">
-                {fmt({ h: p.h, m: p.m })}
-              </span>
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-col items-center justify-center gap-1.5 px-5 py-3">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
-            {activeTab === 'start' ? 'Start' : 'End'}
-          </p>
-          <div className="flex items-center gap-1">
-            <Spinner
-              value={active.h}
-              onInc={() => onSetTime({ ...active, h: (active.h + 1) % 24 })}
-              onDec={() => onSetTime({ ...active, h: (active.h - 1 + 24) % 24 })}
-            />
-            <span className="select-none pb-0.5 text-xl font-bold text-gray-200 dark:text-gray-700">
-              :
-            </span>
-            <Spinner
-              value={active.m}
-              onInc={() => onSetTime({ ...active, m: (active.m + 15) % 60 })}
-              onDec={() => onSetTime({ ...active, m: (active.m - 15 + 60) % 60 })}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Date row for the active tab */}
-      <div className="border-t border-gray-100 px-4 py-2.5 dark:border-gray-800">
-        <div className="mb-2 flex items-center gap-2">
-          <CalendarDays className="h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden="true" />
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            {activeTab === 'start' ? 'Start' : 'End'} date
-          </span>
-        </div>
-        <DatePicker
-          value={activeDate}
-          onChange={onSetDate}
-          placeholder={activeTab === 'start' ? 'Start date' : 'End date'}
-        />
-      </div>
-
-      {/* Footer */}
-      <div className="flex items-center justify-between border-t border-gray-100 px-4 py-2.5 dark:border-gray-800">
-        <button
-          type="button"
-          onClick={onClear}
-          className="text-xs text-gray-400 transition-colors hover:text-red-500 dark:hover:text-red-400"
-        >
-          Clear all
-        </button>
-        {onDone && (
-          <button
-            type="button"
-            onClick={onDone}
-            className="rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
-          >
-            Done
-          </button>
-        )}
-      </div>
-    </div>
-  );
+function addOneDay(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
 
 export interface TimeRangePickerProps {
@@ -219,101 +51,298 @@ export function TimeRangePicker({
   startTime,
   endTime,
   startDate,
-  endDate,
   onChange,
   inline,
 }: TimeRangePickerProps) {
   const [open, setOpen] = useState(false);
-  const [start, setStart] = useState<HM>(() => parse(startTime));
-  const [end, setEnd] = useState<HM>(() => parse(endTime));
-  const [sDate, setSDate] = useState<string | undefined>(startDate);
-  const [eDate, setEDate] = useState<string | undefined>(endDate);
-  const [activeTab, setActiveTab] = useState<'start' | 'end'>('start');
-  const [popStyle, setPopStyle] = useState<React.CSSProperties>({});
+  const [popStyle, setPopStyle] = useState<CSSProperties>({});
   const trigRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
 
+  const [duration, setDuration] = useState(30);
+  const [isCustom, setIsCustom] = useState(false);
+  const [customInput, setCustomInput] = useState('');
+  const [startMin, setStartMin] = useState(() => {
+    if (startTime) return fromHHMM(startTime);
+    const now = new Date();
+    return Math.ceil((now.getHours() * 60 + now.getMinutes()) / 15) * 15;
+  });
+  const [date, setDate] = useState(() => startDate ?? todayISO());
+
   useEffect(() => {
-    setStart(parse(startTime));
-    setEnd(parse(endTime));
-    setSDate(startDate);
-    setEDate(endDate);
-  }, [startTime, endTime, startDate, endDate]);
+    if (startTime) {
+      setStartMin(fromHHMM(startTime));
+    } else {
+      const now = new Date();
+      setStartMin(Math.ceil((now.getHours() * 60 + now.getMinutes()) / 15) * 15);
+      setDuration(30);
+      setIsCustom(false);
+      setCustomInput('');
+    }
+    setDate(startDate ?? todayISO());
+    if (startTime && endTime) {
+      let diff = fromHHMM(endTime) - fromHHMM(startTime);
+      if (diff < 0) diff += 24 * 60;
+      setDuration(diff);
+      const isPreset = DURATION_OPTS.some((o) => o.minutes === diff);
+      setIsCustom(!isPreset);
+      if (!isPreset) setCustomInput(String(diff));
+    }
+  }, [startTime, endTime, startDate]);
 
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
       if (popRef.current?.contains(e.target as Node)) return;
       if (trigRef.current?.contains(e.target as Node)) return;
+      // Ignore clicks inside nested portals (e.g. the DatePicker calendar)
+      if ((e.target as Element)?.closest?.('[data-picker-portal]')) return;
       setOpen(false);
     };
-    const onScroll = () => setOpen(false);
     document.addEventListener('mousedown', onDown);
-    window.addEventListener('scroll', onScroll, true);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      window.removeEventListener('scroll', onScroll, true);
-    };
+    return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
   const openPicker = () => {
     if (!trigRef.current) return;
     const rect = trigRef.current.getBoundingClientRect();
-    const h = 320;
-    const showBelow = window.innerHeight - rect.bottom >= h;
+    const popH = 290;
+    const showBelow = window.innerHeight - rect.bottom >= popH;
     setPopStyle({
       position: 'fixed',
-      top: showBelow ? rect.bottom + 6 : rect.top - h - 6,
-      left: Math.min(rect.left, window.innerWidth - 296),
+      top: showBelow ? rect.bottom + 6 : rect.top - popH - 6,
+      left: Math.min(rect.left, window.innerWidth - 300),
       zIndex: 9999,
     });
     setOpen((v) => !v);
   };
 
-  const applyAll = (s: HM, e: HM, sd: string | undefined, ed: string | undefined) =>
-    onChange(fmt(s), fmt(e), sd, ed);
+  const nowMin = () => {
+    const n = new Date();
+    return n.getHours() * 60 + n.getMinutes();
+  };
+  const minFloor = date === todayISO() ? nowMin() : 0;
+  const safeStartMin = Math.max(startMin, minFloor);
 
-  const clear = () => {
-    onChange(undefined, undefined, undefined, undefined);
-    setOpen(false);
+  const endTotalMin = safeStartMin + duration;
+  const computedEndMin = endTotalMin % (24 * 60);
+  const isNextDay = endTotalMin >= 24 * 60;
+
+  const commit = (s: number, dur: number, dt: string) => {
+    const floor = dt === todayISO() ? nowMin() : 0;
+    const safeS = Math.max(s, floor);
+    const endTotal = safeS + dur;
+    const endM = endTotal % (24 * 60);
+    const endDt = endTotal >= 24 * 60 ? addOneDay(dt) : dt;
+    onChange(toHHMM(safeS), toHHMM(endM), dt, endDt);
   };
 
-  const handleSetTime = (v: HM) => {
-    if (activeTab === 'start') {
-      setStart(v);
-      applyAll(v, end, sDate, eDate);
-    } else {
-      setEnd(v);
-      applyAll(start, v, sDate, eDate);
-    }
-  };
+  const hasSchedule = !!startTime;
 
-  const handleSetDate = (d: string | undefined) => {
-    if (activeTab === 'start') {
-      setSDate(d);
-      applyAll(start, end, d, eDate);
-    } else {
-      setEDate(d);
-      applyAll(start, end, sDate, d);
-    }
-  };
-
-  const hasTime = !!(startTime || endTime);
-  const datePrefix = fmtDateShort(startDate);
+  const displayDurMin =
+    startTime && endTime
+      ? (() => {
+          const d = fromHHMM(endTime) - fromHHMM(startTime);
+          return d < 0 ? d + 24 * 60 : d;
+        })()
+      : null;
+  const durLabel =
+    DURATION_OPTS.find((o) => o.minutes === (displayDurMin ?? duration))?.label ??
+    (displayDurMin ? `${displayDurMin}min` : '');
 
   if (inline) {
     return (
-      <PickerPanel
-        start={start}
-        end={end}
-        startDate={sDate}
-        endDate={eDate}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        onSetTime={handleSetTime}
-        onSetDate={handleSetDate}
-        onClear={() => onChange(undefined, undefined, undefined, undefined)}
-      />
+      <div className="w-72 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+        {/* Duration pills */}
+        <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+            Duration
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {DURATION_OPTS.map((opt) => (
+              <button
+                key={opt.minutes}
+                type="button"
+                onClick={() => {
+                  setIsCustom(false);
+                  setCustomInput('');
+                  setDuration(opt.minutes);
+                  commit(startMin, opt.minutes, date);
+                }}
+                className={cn(
+                  'rounded-lg px-2.5 py-1 text-xs font-medium transition-colors',
+                  !isCustom && duration === opt.minutes
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700',
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                setIsCustom(true);
+                setCustomInput(String(duration));
+              }}
+              className={cn(
+                'rounded-lg px-2.5 py-1 text-xs font-medium transition-colors',
+                isCustom
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700',
+              )}
+            >
+              Custom
+            </button>
+          </div>
+          {isCustom && (
+            <div className="mt-2 flex items-center gap-1.5">
+              <input
+                type="number"
+                min="1"
+                max="1440"
+                value={customInput}
+                onChange={(e) => {
+                  setCustomInput(e.target.value);
+                  const mins = parseInt(e.target.value, 10);
+                  if (mins > 0 && mins <= 1440) {
+                    setDuration(mins);
+                    commit(startMin, mins, date);
+                  }
+                }}
+                placeholder="e.g. 45"
+                autoFocus
+                className="w-16 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 font-mono text-xs font-bold text-gray-800 outline-none focus:border-blue-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+              />
+              <span className="text-xs text-gray-400">minutes</span>
+            </div>
+          )}
+        </div>
+
+        {/* Start time + date */}
+        <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+          <p className="mb-2.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+            Start time
+          </p>
+          <div className="flex items-center gap-3">
+            <div className="flex shrink-0 items-center gap-1">
+              {/* Hour spinner */}
+              <div className="flex flex-col items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const raw =
+                      ((Math.floor(safeStartMin / 60) + 1) % 24) * 60 + (safeStartMin % 60);
+                    const newS = Math.max(raw, minFloor);
+                    setStartMin(newS);
+                    commit(newS, duration, date);
+                  }}
+                  className="flex h-5 w-7 items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <ChevronUp className="h-3 w-3 text-gray-400" />
+                </button>
+                <span className="flex h-7 w-7 select-none items-center justify-center rounded bg-gray-50 font-mono text-sm font-bold text-gray-800 dark:bg-gray-700 dark:text-gray-100">
+                  {String(Math.floor(safeStartMin / 60)).padStart(2, '0')}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const raw =
+                      ((Math.floor(safeStartMin / 60) - 1 + 24) % 24) * 60 + (safeStartMin % 60);
+                    const newS = Math.max(raw, minFloor);
+                    setStartMin(newS);
+                    commit(newS, duration, date);
+                  }}
+                  className="flex h-5 w-7 items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <ChevronDown className="h-3 w-3 text-gray-400" />
+                </button>
+              </div>
+              <span className="pb-0.5 text-sm font-bold text-gray-200 dark:text-gray-700">:</span>
+              {/* Minute spinner */}
+              <div className="flex flex-col items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const raw =
+                      Math.floor(safeStartMin / 60) * 60 + (((safeStartMin % 60) + 15) % 60);
+                    const newS = Math.max(raw, minFloor);
+                    setStartMin(newS);
+                    commit(newS, duration, date);
+                  }}
+                  className="flex h-5 w-7 items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <ChevronUp className="h-3 w-3 text-gray-400" />
+                </button>
+                <span className="flex h-7 w-7 select-none items-center justify-center rounded bg-gray-50 font-mono text-sm font-bold text-gray-800 dark:bg-gray-700 dark:text-gray-100">
+                  {String(safeStartMin % 60).padStart(2, '0')}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const raw =
+                      Math.floor(safeStartMin / 60) * 60 + (((safeStartMin % 60) - 15 + 60) % 60);
+                    const newS = Math.max(raw, minFloor);
+                    setStartMin(newS);
+                    commit(newS, duration, date);
+                  }}
+                  className="flex h-5 w-7 items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <ChevronDown className="h-3 w-3 text-gray-400" />
+                </button>
+              </div>
+            </div>
+            {/* Date picker */}
+            <div className="min-w-0 flex-1">
+              <DatePicker
+                value={date}
+                onChange={(d) => {
+                  const newDate = d ?? todayISO();
+                  setDate(newDate);
+                  const floor = newDate === todayISO() ? nowMin() : 0;
+                  const safe = Math.max(startMin, floor);
+                  setStartMin(safe);
+                  commit(safe, duration, newDate);
+                }}
+                minDate={todayISO()}
+              />
+            </div>
+          </div>
+          {minFloor > 0 && safeStartMin === minFloor && (
+            <p className="mt-1.5 text-[10px] text-amber-500">Earliest available — clamped to now</p>
+          )}
+        </div>
+
+        {/* End time (auto-calculated, read-only) */}
+        <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+            End time (auto)
+          </p>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-sm font-semibold text-gray-500 dark:text-gray-400">
+              {toHHMM(computedEndMin)}
+            </span>
+            {isNextDay && (
+              <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">
+                +1 day
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-4 py-2.5">
+          <button
+            type="button"
+            onClick={() => {
+              onChange(undefined, undefined, undefined, undefined);
+            }}
+            className="text-xs text-gray-400 transition-colors hover:text-red-500 dark:hover:text-red-400"
+          >
+            Clear
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -324,43 +353,227 @@ export function TimeRangePicker({
         type="button"
         onClick={openPicker}
         className={cn(
-          'flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-xs transition-colors',
-          hasTime
-            ? 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
-            : 'text-gray-400 hover:bg-gray-100 hover:text-gray-500 dark:hover:bg-gray-800',
+          'flex max-w-28 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-blue-900',
+          !hasSchedule ? 'text-gray-400' : '',
         )}
-        aria-label={hasTime ? `Schedule: ${startTime ?? ''} to ${endTime ?? ''}` : 'Add schedule'}
-        title="Set start and end time"
       >
-        <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
-        {hasTime ? (
-          <span className="font-medium tabular-nums">
-            {datePrefix && <span className="mr-1 text-gray-400">{datePrefix}</span>}
-            {startTime ?? ''}
-            {startTime && endTime ? ' – ' : ''}
-            {endTime ?? ''}
-          </span>
-        ) : (
-          <span>Add time</span>
-        )}
+        <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+        <p className="max-w-20 truncate whitespace-nowrap">
+          {hasSchedule ? `${durLabel} · ${startTime}–${endTime}` : 'Duration'}
+        </p>
       </button>
 
       {open &&
         typeof document !== 'undefined' &&
         createPortal(
-          <div ref={popRef} style={popStyle}>
-            <PickerPanel
-              start={start}
-              end={end}
-              startDate={sDate}
-              endDate={eDate}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              onSetTime={handleSetTime}
-              onSetDate={handleSetDate}
-              onClear={clear}
-              onDone={() => setOpen(false)}
-            />
+          <div
+            ref={popRef}
+            style={popStyle}
+            className="w-72 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+          >
+            {/* Duration pills */}
+            <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                Duration
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {DURATION_OPTS.map((opt) => (
+                  <button
+                    key={opt.minutes}
+                    type="button"
+                    onClick={() => {
+                      setIsCustom(false);
+                      setCustomInput('');
+                      setDuration(opt.minutes);
+                      commit(startMin, opt.minutes, date);
+                    }}
+                    className={cn(
+                      'rounded-lg px-2.5 py-1 text-xs font-medium transition-colors',
+                      !isCustom && duration === opt.minutes
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700',
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCustom(true);
+                    setCustomInput(String(duration));
+                  }}
+                  className={cn(
+                    'rounded-lg px-2.5 py-1 text-xs font-medium transition-colors',
+                    isCustom
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700',
+                  )}
+                >
+                  Custom
+                </button>
+              </div>
+              {isCustom && (
+                <div className="mt-2 flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min="1"
+                    max="1440"
+                    value={customInput}
+                    onChange={(e) => {
+                      setCustomInput(e.target.value);
+                      const mins = parseInt(e.target.value, 10);
+                      if (mins > 0 && mins <= 1440) {
+                        setDuration(mins);
+                        commit(startMin, mins, date);
+                      }
+                    }}
+                    placeholder="e.g. 45"
+                    autoFocus
+                    className="w-16 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 font-mono text-xs font-bold text-gray-800 outline-none focus:border-blue-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                  />
+                  <span className="text-xs text-gray-400">minutes</span>
+                </div>
+              )}
+            </div>
+
+            {/* Start time + date */}
+            <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+              <p className="mb-2.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                Start time
+              </p>
+              <div className="flex items-center gap-3">
+                <div className="flex shrink-0 items-center gap-1">
+                  {/* Hour spinner */}
+                  <div className="flex flex-col items-center gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const raw =
+                          ((Math.floor(safeStartMin / 60) + 1) % 24) * 60 + (safeStartMin % 60);
+                        const newS = Math.max(raw, minFloor);
+                        setStartMin(newS);
+                        commit(newS, duration, date);
+                      }}
+                      className="flex h-5 w-7 items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      <ChevronUp className="h-3 w-3 text-gray-400" />
+                    </button>
+                    <span className="flex h-7 w-7 select-none items-center justify-center rounded bg-gray-50 font-mono text-sm font-bold text-gray-800 dark:bg-gray-700 dark:text-gray-100">
+                      {String(Math.floor(safeStartMin / 60)).padStart(2, '0')}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const raw =
+                          ((Math.floor(safeStartMin / 60) - 1 + 24) % 24) * 60 +
+                          (safeStartMin % 60);
+                        const newS = Math.max(raw, minFloor);
+                        setStartMin(newS);
+                        commit(newS, duration, date);
+                      }}
+                      className="flex h-5 w-7 items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      <ChevronDown className="h-3 w-3 text-gray-400" />
+                    </button>
+                  </div>
+                  <span className="pb-0.5 text-sm font-bold text-gray-200 dark:text-gray-700">
+                    :
+                  </span>
+                  {/* Minute spinner */}
+                  <div className="flex flex-col items-center gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const raw =
+                          Math.floor(safeStartMin / 60) * 60 + (((safeStartMin % 60) + 15) % 60);
+                        const newS = Math.max(raw, minFloor);
+                        setStartMin(newS);
+                        commit(newS, duration, date);
+                      }}
+                      className="flex h-5 w-7 items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      <ChevronUp className="h-3 w-3 text-gray-400" />
+                    </button>
+                    <span className="flex h-7 w-7 select-none items-center justify-center rounded bg-gray-50 font-mono text-sm font-bold text-gray-800 dark:bg-gray-700 dark:text-gray-100">
+                      {String(safeStartMin % 60).padStart(2, '0')}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const raw =
+                          Math.floor(safeStartMin / 60) * 60 +
+                          (((safeStartMin % 60) - 15 + 60) % 60);
+                        const newS = Math.max(raw, minFloor);
+                        setStartMin(newS);
+                        commit(newS, duration, date);
+                      }}
+                      className="flex h-5 w-7 items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      <ChevronDown className="h-3 w-3 text-gray-400" />
+                    </button>
+                  </div>
+                </div>
+                {/* Date picker */}
+                <div className="min-w-0 flex-1">
+                  <DatePicker
+                    value={date}
+                    onChange={(d) => {
+                      const newDate = d ?? todayISO();
+                      setDate(newDate);
+                      const floor = newDate === todayISO() ? nowMin() : 0;
+                      const safe = Math.max(startMin, floor);
+                      setStartMin(safe);
+                      commit(safe, duration, newDate);
+                    }}
+                    minDate={todayISO()}
+                  />
+                </div>
+              </div>
+              {minFloor > 0 && safeStartMin === minFloor && (
+                <p className="mt-1.5 text-[10px] text-amber-500">
+                  Earliest available — clamped to now
+                </p>
+              )}
+            </div>
+
+            {/* End time (auto-calculated, read-only) */}
+            <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                End time (auto)
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-sm font-semibold text-gray-500 dark:text-gray-400">
+                  {toHHMM(computedEndMin)}
+                </span>
+                {isNextDay && (
+                  <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">
+                    +1 day
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between px-4 py-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  onChange(undefined, undefined, undefined, undefined);
+                  setOpen(false);
+                }}
+                className="text-xs text-gray-400 transition-colors hover:text-red-500 dark:hover:text-red-400"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+              >
+                Done
+              </button>
+            </div>
           </div>,
           document.body,
         )}

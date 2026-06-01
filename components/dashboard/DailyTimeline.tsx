@@ -2,7 +2,6 @@
 
 import { useMemo, useEffect, useState, useRef, useCallback } from 'react';
 import { Clock, CircleDashed, Loader2, CheckCircle2, Plus, Minus } from 'lucide-react';
-import { cn } from '@/lib/cn';
 import { useTaskContext } from '@/context/TaskContext';
 import type { Task } from '@/types/task';
 
@@ -11,17 +10,6 @@ import type { Task } from '@/types/task';
 function toMin(t: string): number {
   const [h, m] = t.split(':').map(Number);
   return h * 60 + (m || 0);
-}
-
-function snapMin(min: number, snap = 15): number {
-  return Math.round(min / snap) * snap;
-}
-
-/** Write back to HH:MM, wrapping across midnight */
-function minToTime(min: number): string {
-  const h = Math.floor(min / 60) % 24;
-  const m = min % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
 /** Axis label — adds "+1" when past midnight */
@@ -49,6 +37,20 @@ function effectiveEnd(startMin: number, endMin: number): number {
   return endMin < startMin ? endMin + 24 * 60 : endMin;
 }
 
+/**
+ * Adjust task times to handle next-day scheduling.
+ * If current time is late (e.g., 11 PM) and task is early (e.g., 6 AM),
+ * treat the task as tomorrow by adding 24 hours.
+ */
+function adjustForNextDay(taskMin: number, nowMin: number): number {
+  // If we're past 6 PM (18:00) and the task is before noon (12:00),
+  // it's likely a next-day task
+  if (nowMin >= 18 * 60 && taskMin < 12 * 60) {
+    return taskMin + 24 * 60;
+  }
+  return taskMin;
+}
+
 const ICONS: Record<string, React.ElementType> = {
   todo: CircleDashed,
   'in-progress': Loader2,
@@ -66,18 +68,15 @@ interface Slot {
   endMin: number;
 }
 
-function buildLanes(
-  tasks: Task[],
-  overrides: Record<string, { startMin: number; endMin: number }>,
-): Slot[][] {
+function buildLanes(tasks: Task[], nowMin: number): Slot[][] {
   const sorted = [...tasks]
     .filter((t) => t.startTime)
     .map((t) => {
-      const ov = overrides[t.id];
-      if (ov) return { task: t, startMin: ov.startMin, endMin: ov.endMin };
-      const s = toMin(t.startTime!);
-      const rawEnd = t.endTime ? toMin(t.endTime) : s + 90;
-      return { task: t, startMin: s, endMin: effectiveEnd(s, rawEnd) };
+      const rawStart = toMin(t.startTime!);
+      const s = adjustForNextDay(rawStart, nowMin);
+      const rawEnd = t.endTime ? toMin(t.endTime) : rawStart + 90;
+      const adjustedRawEnd = adjustForNextDay(rawEnd, nowMin);
+      return { task: t, startMin: s, endMin: effectiveEnd(s, adjustedRawEnd) };
     })
     .sort((a, b) => a.startMin - b.startMin);
 
@@ -92,35 +91,16 @@ function buildLanes(
   return lanes.map((l) => l.slots);
 }
 
-// ── drag state ────────────────────────────────────────────────────────────────
-
-interface DragState {
-  type: 'move' | 'resize';
-  taskId: string;
-  origStart: number;
-  origEnd: number;
-  startX: number;
-  containerW: number;
-  rangeSize: number;
-}
-
 // ── component ─────────────────────────────────────────────────────────────────
 
 export function DailyTimeline() {
   const {
     state: { tasks, statusGroups },
-    updateTask,
   } = useTaskContext();
 
-  const scrollRef = useRef<HTMLDivElement>(null); // outer overflow-x-auto (wheel/touch target)
-  const containerRef = useRef<HTMLDivElement>(null); // inner scaled canvas (drag width source)
-  const overrideRef = useRef<Record<string, { startMin: number; endMin: number }>>({});
+  const scrollRef = useRef<HTMLDivElement>(null);
   const pinchRef = useRef(0);
 
-  const [overrides, setOverrides] = useState<Record<string, { startMin: number; endMin: number }>>(
-    {},
-  );
-  const [drag, setDrag] = useState<DragState | null>(null);
   const [zoom, setZoom] = useState(1);
   const [nowMin, setNowMin] = useState<number | null>(null);
 
@@ -135,8 +115,7 @@ export function DailyTimeline() {
     return () => clearInterval(id);
   }, []);
 
-  // ── ctrl+scroll zoom ──────────────────────────────────────────────────────
-
+  // ctrl+scroll zoom
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -150,8 +129,7 @@ export function DailyTimeline() {
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
-  // ── pinch zoom (touch) ────────────────────────────────────────────────────
-
+  // Pinch zoom (touch)
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -170,8 +148,7 @@ export function DailyTimeline() {
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY,
       );
-      const scale = dist / pinchRef.current;
-      setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z * scale)));
+      setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z * (dist / pinchRef.current))));
       pinchRef.current = dist;
     };
     el.addEventListener('touchstart', onStart, { passive: true });
@@ -187,118 +164,33 @@ export function DailyTimeline() {
   const scheduled = useMemo(() => tasks.filter((t) => t.startTime), [tasks]);
 
   const { rangeStart, rangeEnd, labels } = useMemo(() => {
-    if (!scheduled.length) {
+    if (!scheduled.length || nowMin === null) {
       const ticks = [7, 9, 11, 13, 15, 17, 19, 21].map((h) => h * 60);
       return { rangeStart: 7 * 60, rangeEnd: 21 * 60, labels: ticks };
     }
-    const starts = scheduled.map((t) => toMin(t.startTime!));
+    // Use adjusted times for range calculation
+    const starts = scheduled.map((t) => {
+      const rawStart = toMin(t.startTime!);
+      return adjustForNextDay(rawStart, nowMin);
+    });
     const ends = scheduled.map((t) => {
-      const s = toMin(t.startTime!);
-      const rawEnd = t.endTime ? toMin(t.endTime) : s + 90;
-      return effectiveEnd(s, rawEnd);
+      const rawStart = toMin(t.startTime!);
+      const s = adjustForNextDay(rawStart, nowMin);
+      const rawEnd = t.endTime ? toMin(t.endTime) : rawStart + 90;
+      const adjustedRawEnd = adjustForNextDay(rawEnd, nowMin);
+      return effectiveEnd(s, adjustedRawEnd);
     });
     const rS = Math.floor((Math.min(...starts) - 60) / 120) * 120;
     const rE = Math.ceil((Math.max(...ends) + 60) / 120) * 120;
     const ticks: number[] = [];
     for (let t = rS; t <= rE; t += 120) ticks.push(t);
     return { rangeStart: rS, rangeEnd: rE, labels: ticks };
-  }, [scheduled]);
+  }, [scheduled, nowMin]);
 
   const span = rangeEnd - rangeStart;
   const toPct = useCallback((min: number) => ((min - rangeStart) / span) * 100, [rangeStart, span]);
 
-  const lanes = useMemo(() => buildLanes(scheduled, overrides), [scheduled, overrides]);
-
-  // ── drag ─────────────────────────────────────────────────────────────────
-
-  const startDrag = useCallback(
-    (
-      e: React.PointerEvent,
-      type: 'move' | 'resize',
-      task: Task,
-      startMin: number,
-      endMin: number,
-    ) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const w = containerRef.current?.getBoundingClientRect().width ?? 600;
-      setDrag({
-        type,
-        taskId: task.id,
-        origStart: startMin,
-        origEnd: endMin,
-        startX: e.clientX,
-        containerW: w,
-        rangeSize: span,
-      });
-      const ov = { startMin, endMin };
-      overrideRef.current = { ...overrideRef.current, [task.id]: ov };
-      setOverrides({ ...overrideRef.current });
-    },
-    [span],
-  );
-
-  useEffect(() => {
-    if (!drag) return;
-    const onMove = (e: PointerEvent) => {
-      const delta = ((e.clientX - drag.startX) / drag.containerW) * drag.rangeSize;
-      if (drag.type === 'move') {
-        const dur = drag.origEnd - drag.origStart;
-        const newStart = Math.max(0, Math.min(48 * 60 - dur, snapMin(drag.origStart + delta)));
-        overrideRef.current = {
-          ...overrideRef.current,
-          [drag.taskId]: { startMin: newStart, endMin: newStart + dur },
-        };
-      } else {
-        const newEnd = Math.max(
-          drag.origStart + 15,
-          Math.min(48 * 60, snapMin(drag.origEnd + delta)),
-        );
-        overrideRef.current = {
-          ...overrideRef.current,
-          [drag.taskId]: { startMin: drag.origStart, endMin: newEnd },
-        };
-      }
-      setOverrides({ ...overrideRef.current });
-    };
-    const onUp = () => {
-      const ov = overrideRef.current[drag.taskId];
-      if (ov) {
-        const task = tasks.find((t) => t.id === drag.taskId);
-        if (task) {
-          const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-          const startDayOffset = Math.floor(ov.startMin / (24 * 60));
-          const endDayOffset = Math.floor(ov.endMin / (24 * 60));
-          const startDate =
-            startDayOffset === 0 ? undefined : startDayOffset === 1 ? tomorrow : undefined;
-          const endDate =
-            endDayOffset === 1 ? tomorrow : endDayOffset === 0 ? undefined : undefined;
-          updateTask(drag.taskId, {
-            title: task.title,
-            description: task.description,
-            priority: task.priority,
-            status: task.status,
-            collection: task.collection,
-            startTime: minToTime(ov.startMin),
-            endTime: minToTime(ov.endMin),
-            startDate,
-            endDate,
-          });
-        }
-      }
-      const next = { ...overrideRef.current };
-      delete next[drag.taskId];
-      overrideRef.current = next;
-      setOverrides(next);
-      setDrag(null);
-    };
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    return () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-    };
-  }, [drag, tasks, updateTask]);
+  const lanes = useMemo(() => buildLanes(scheduled, nowMin ?? 0), [scheduled, nowMin]);
 
   const nowPct = nowMin !== null ? toPct(nowMin) : null;
   const showNeedle = nowPct !== null && nowPct >= 0 && nowPct <= 100;
@@ -325,7 +217,7 @@ export function DailyTimeline() {
         {/* Zoom controls */}
         <div className="ml-auto flex items-center gap-1.5">
           <span className="hidden text-[10px] text-gray-400 dark:text-gray-600 sm:block">
-            Pinch or ctrl+scroll to zoom · drag to move
+            Pinch or ctrl+scroll to zoom
           </span>
           <div className="flex items-center gap-0.5 rounded-lg border border-gray-200 bg-white p-0.5 dark:border-gray-700 dark:bg-gray-800">
             <button
@@ -360,13 +252,8 @@ export function DailyTimeline() {
           </p>
         </div>
       ) : (
-        /* Scroll wrapper — zoom & pinch events attach here */
         <div ref={scrollRef} className="overflow-x-auto">
-          {/* Scaled canvas */}
-          <div
-            ref={containerRef}
-            style={{ width: `${Math.max(100, zoom * 100)}%`, minWidth: '620px' }}
-          >
+          <div style={{ width: `${Math.max(100, zoom * 100)}%`, minWidth: '620px' }}>
             {/* Time axis */}
             <div className="relative mb-2 h-5">
               {labels.map((t) => (
@@ -382,11 +269,8 @@ export function DailyTimeline() {
 
             {/* Canvas */}
             <div
-              className={cn(
-                'relative select-none rounded-xl bg-gray-50/60 py-3 dark:bg-gray-800/30',
-                drag && 'cursor-grabbing',
-              )}
-              style={{ minHeight: `${Math.max(lanes.length, 2) * 64 + 24}px` }}
+              className="relative select-none rounded-xl bg-gray-50/60 py-3 dark:bg-gray-800/30"
+              style={{ minHeight: `${Math.max(lanes.length, 2) * 80 + 24}px` }}
             >
               {/* Grid lines */}
               {labels.map((t) => (
@@ -413,7 +297,7 @@ export function DailyTimeline() {
                 <div
                   key={li}
                   className="relative"
-                  style={{ height: '56px', marginBottom: li < lanes.length - 1 ? '8px' : 0 }}
+                  style={{ height: '68px', marginBottom: li < lanes.length - 1 ? '12px' : 0 }}
                 >
                   {lane.map(({ task, startMin, endMin }) => {
                     const group = statusGroups.find((g) => g.id === task.status);
@@ -421,28 +305,20 @@ export function DailyTimeline() {
                     const Icon = ICONS[task.status] ?? CircleDashed;
                     const left = toPct(startMin);
                     const width = ((endMin - startMin) / span) * 100;
-                    const isDragging = drag?.taskId === task.id;
                     const crossMidnight = endMin >= 24 * 60;
 
                     return (
                       <div
                         key={task.id}
-                        className={cn(
-                          'absolute flex h-14 items-center gap-2 overflow-hidden rounded-xl border px-2.5 text-xs font-medium transition-shadow',
-                          isDragging ? 'z-20 shadow-xl ring-2' : 'cursor-grab hover:shadow-md',
-                        )}
+                        className="absolute flex h-14 items-center gap-2 overflow-hidden rounded-xl border px-2.5 text-xs font-medium"
                         style={{
                           left: `${left}%`,
                           width: `${Math.max(width, 6)}%`,
                           minWidth: '110px',
                           backgroundColor: `${color}12`,
-                          borderColor: isDragging ? color : `${color}38`,
+                          borderColor: `${color}38`,
                           color,
-                          ...(isDragging
-                            ? ({ '--tw-ring-color': color } as React.CSSProperties)
-                            : {}),
                         }}
-                        onPointerDown={(e) => startDrag(e, 'move', task, startMin, endMin)}
                         title={`${task.title} · ${fmtTime(startMin)} – ${fmtTime(endMin)}`}
                       >
                         <span
@@ -461,20 +337,6 @@ export function DailyTimeline() {
                               </span>
                             )}
                           </p>
-                        </div>
-                        {/* Resize handle */}
-                        <div
-                          className="absolute right-0 top-0 flex h-full w-3 cursor-ew-resize items-center justify-center rounded-r-xl opacity-0 transition-opacity hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/5"
-                          onPointerDown={(e) => {
-                            e.stopPropagation();
-                            startDrag(e, 'resize', task, startMin, endMin);
-                          }}
-                          title="Drag to change end time"
-                        >
-                          <div
-                            className="h-4 w-0.5 rounded-full"
-                            style={{ backgroundColor: color }}
-                          />
                         </div>
                       </div>
                     );

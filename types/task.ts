@@ -39,6 +39,16 @@ export interface Collection {
   createdAt: string;
 }
 
+// ─── Recurrence ───────────────────────────────────────────────────────────────
+
+export type RepeatFreq = 'daily' | 'weekdays' | 'weekends' | 'weekly' | 'custom';
+
+export interface TaskRecurrence {
+  frequency: RepeatFreq;
+  customDays: number[]; // 0=Sun … 6=Sat; only for frequency='custom'
+  occurrences: number; // how many times this task repeats
+}
+
 // ─── Task ─────────────────────────────────────────────────────────────────────
 
 export interface Task {
@@ -57,6 +67,10 @@ export interface Task {
   /** "YYYY-MM-DD" date — optional. When absent the task is treated as "today". */
   startDate?: string;
   endDate?: string;
+  /** true when the task was created as part of a recurring series */
+  recurring?: boolean;
+  /** recurrence config stored on the task */
+  recurrence?: TaskRecurrence;
 }
 
 export interface TaskFormValues {
@@ -69,6 +83,8 @@ export interface TaskFormValues {
   endTime?: string;
   startDate?: string;
   endDate?: string;
+  recurring?: boolean;
+  recurrence?: TaskRecurrence;
 }
 
 /** Partial update applied to an existing task via inline editors. */

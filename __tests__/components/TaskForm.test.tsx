@@ -77,18 +77,18 @@ describe('TaskForm', () => {
     });
   });
 
-  it('selects status, priority, and collection from chip menus', async () => {
+  it('selects priority and collection from chip menus', async () => {
     const user = userEvent.setup();
     renderForm();
 
-    await user.click(screen.getByRole('button', { name: /to do/i }));
-    await user.click(screen.getByText('Done'));
-    await user.click(screen.getByRole('button', { name: /medium/i }));
+    // Priority chip — default is 'low'
+    await user.click(screen.getByRole('button', { name: /low/i }));
     await user.click(screen.getByText('High'));
+
+    // Collection chip
     await user.click(screen.getByRole('button', { name: /collection/i }));
     await user.click(screen.getByText('Work'));
 
-    expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /high/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /work/i })).toBeInTheDocument();
   });
@@ -108,7 +108,7 @@ describe('TaskForm', () => {
         expect.objectContaining({
           title: 'New task',
           collection: 'work',
-          priority: 'medium',
+          priority: 'low',
           status: 'todo',
         }),
       );

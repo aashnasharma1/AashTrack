@@ -19,23 +19,23 @@ interface Step {
 const DASHBOARD_STEPS: Step[] = [
   {
     target: 'dashboard-timeline',
-    title: "Today's Timeline",
+    title: 'Daily Timeline',
     description:
-      'Drag tasks to reschedule them in real-time. Pinch or ctrl+scroll to zoom. Resize by dragging the right edge. You can schedule up to 2 days ahead.',
+      'Drag tasks to reschedule. Ctrl+scroll to zoom. Resize by dragging the right edge of any block.',
     placement: 'bottom',
   },
   {
     target: 'dashboard-workload',
     title: 'Workload by Status',
     description:
-      'See at a glance how many tasks you have in each status. The chart updates as you complete tasks.',
+      'Task counts per status at a glance. Bars update live as tasks move through your workflow.',
     placement: 'bottom',
   },
   {
     target: 'dashboard-tracker',
     title: 'Time Tracker',
     description:
-      'Track time spent on tasks. Click any task in the quick-start list to begin. Time is saved automatically.',
+      'Click a task to start the timer. Sessions save automatically — view the full log in History.',
     placement: 'bottom',
   },
 ];
@@ -84,25 +84,43 @@ const getStepsForPage = (pathname: string): Step[] => {
   return [];
 };
 
+const TOOLTIP_H = 180; // estimated tooltip height for collision checks
+
 function calcTooltipStyle(rect: DOMRect, placement: Step['placement']): CSSProperties {
   const cy = rect.top + rect.height / 2;
   const left = Math.max(
     12,
     Math.min(rect.left + rect.width / 2 - TOOLTIP_W / 2, window.innerWidth - TOOLTIP_W - 12),
   );
+  const gap = PAD + 10;
+
   switch (placement) {
-    case 'bottom':
+    case 'bottom': {
+      const spaceBelow = window.innerHeight - rect.bottom - gap;
+      const spaceAbove = rect.top - gap;
+      if (spaceBelow >= TOOLTIP_H || spaceBelow >= spaceAbove) {
+        // Enough room below (or more room below than above) — place below, clamped
+        return {
+          position: 'fixed',
+          top: Math.min(rect.bottom + gap, window.innerHeight - TOOLTIP_H - 12),
+          left,
+          width: TOOLTIP_W,
+          zIndex: 9999,
+        };
+      }
+      // Flip above
       return {
         position: 'fixed',
-        top: rect.bottom + PAD + 10,
+        top: Math.max(12, rect.top - TOOLTIP_H - gap),
         left,
         width: TOOLTIP_W,
         zIndex: 9999,
       };
+    }
     case 'top':
       return {
         position: 'fixed',
-        bottom: window.innerHeight - rect.top + PAD + 10,
+        top: Math.max(12, rect.top - TOOLTIP_H - gap),
         left,
         width: TOOLTIP_W,
         zIndex: 9999,
@@ -110,16 +128,16 @@ function calcTooltipStyle(rect: DOMRect, placement: Step['placement']): CSSPrope
     case 'right':
       return {
         position: 'fixed',
-        top: Math.max(12, cy - 80),
-        left: rect.right + PAD + 10,
+        top: Math.max(12, Math.min(cy - 80, window.innerHeight - TOOLTIP_H - 12)),
+        left: rect.right + gap,
         width: TOOLTIP_W,
         zIndex: 9999,
       };
     case 'left':
       return {
         position: 'fixed',
-        top: Math.max(12, cy - 80),
-        right: window.innerWidth - rect.left + PAD + 10,
+        top: Math.max(12, Math.min(cy - 80, window.innerHeight - TOOLTIP_H - 12)),
+        right: window.innerWidth - rect.left + gap,
         width: TOOLTIP_W,
         zIndex: 9999,
       };

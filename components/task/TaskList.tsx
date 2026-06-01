@@ -405,6 +405,7 @@ export function TaskList({ lockedCollection }: TaskListProps = {}) {
                   onDelete={handleDelete}
                   onStatusChange={handleStatusChange}
                   isLast={idx === displayTasks.length - 1}
+                  showCollection={!lockedCollection}
                 />
               ))}
             </tbody>

@@ -5,7 +5,13 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Trash2, Pencil } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { PrioritySelector, ClickableStatusBadge } from '@/components/ui/Badge';
+import {
+  PrioritySelector,
+  ClickableStatusBadge,
+  RecurringBadge,
+  OverdueBadge,
+} from '@/components/ui/Badge';
+import { isTaskOverdue } from '@/lib/taskUtils';
 import { TimeRangePicker } from '@/components/ui/TimePicker';
 import { useTaskContext } from '@/context/TaskContext';
 import type { Collection, Task, TaskPatch } from '@/types/task';
@@ -104,10 +110,12 @@ export function TaskBoardCard({
           ) : (
             <p
               onClick={() => setEditingTitle(true)}
-              className="cursor-text text-sm font-medium leading-snug text-gray-900 hover:text-blue-700 dark:text-gray-100 dark:hover:text-blue-400"
+              className="flex min-w-0 cursor-text items-center gap-1.5 text-sm font-medium leading-snug text-gray-900 hover:text-blue-700 dark:text-gray-100 dark:hover:text-blue-400"
               title="Click to edit"
             >
-              {task.title}
+              <span className="truncate">{task.title}</span>
+              {task.recurring && <RecurringBadge className="shrink-0" />}
+              {isTaskOverdue(task) && <OverdueBadge className="shrink-0" />}
             </p>
           )}
         </div>

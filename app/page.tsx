@@ -59,7 +59,7 @@ function DashboardContent() {
       <DailyTimeline />
 
       {/* Two-column insights row — min-h forces equal stretch */}
-      <div className="grid min-h-[460px] grid-cols-1 gap-5 md:grid-cols-2">
+      <div className="grid h-[380px] grid-cols-1 gap-5 md:grid-cols-2">
         <WorkloadByStatus />
         <TimeTracker />
       </div>

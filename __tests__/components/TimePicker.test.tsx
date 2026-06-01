@@ -4,7 +4,7 @@ import { TimeRangePicker } from '@/components/ui/TimePicker';
 
 describe('TimeRangePicker', () => {
   const isoForLocalDate = (year: number, month: number, day: number) =>
-    new Date(year, month, day).toISOString().split('T')[0];
+    `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -15,102 +15,94 @@ describe('TimeRangePicker', () => {
     vi.useRealTimers();
   });
 
-  it('renders an empty trigger and opens the picker', () => {
+  it('renders a trigger button and opens the picker', () => {
     const onChange = vi.fn();
     render(<TimeRangePicker onChange={onChange} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /add schedule/i }));
+    // Trigger button shows "Duration" when no time is set
+    const trigger = screen.getByRole('button', { name: /duration/i });
+    expect(trigger).toBeInTheDocument();
 
-    expect(screen.getByText('Morning')).toBeInTheDocument();
-    expect(screen.getByText('Clear all')).toBeInTheDocument();
+    fireEvent.click(trigger);
+
+    // Popover opens with duration pills
+    expect(screen.getByText('5 min')).toBeInTheDocument();
+    expect(screen.getByText('Done')).toBeInTheDocument();
+    expect(screen.getByText('Clear')).toBeInTheDocument();
   });
 
-  it('applies preset times for start and end tabs', () => {
+  it('selects a duration pill in inline mode and calls onChange', () => {
     const onChange = vi.fn();
-    render(<TimeRangePicker startTime="08:00" endTime="17:00" onChange={onChange} inline />);
+    // Use a past date so minFloor = 0 (no time clamping)
+    render(<TimeRangePicker startTime="09:00" startDate="2020-01-01" onChange={onChange} inline />);
 
-    fireEvent.click(screen.getByText('Midday'));
-    expect(onChange).toHaveBeenLastCalledWith('12:00', '17:00', undefined, undefined);
-
-    fireEvent.click(screen.getByRole('button', { name: /end .*17:00/i }));
-    fireEvent.click(screen.getByText('Evening'));
-    expect(onChange).toHaveBeenLastCalledWith('12:00', '18:00', undefined, undefined);
+    fireEvent.click(screen.getByText('30 min'));
+    expect(onChange).toHaveBeenCalled();
+    const args = onChange.mock.lastCall as [string, string, string, string | undefined];
+    expect(args[0]).toBe('09:00');
+    expect(args[1]).toBe('09:30');
   });
 
-  it('increments and decrements hours and minutes', () => {
-    const onChange = vi.fn();
-    const { container } = render(
-      <TimeRangePicker startTime="09:00" endTime="10:00" onChange={onChange} inline />,
-    );
+  it('shows duration options including Custom', () => {
+    render(<TimeRangePicker startTime="09:00" onChange={vi.fn()} inline />);
 
-    const buttons = container.querySelectorAll('button');
-    fireEvent.click(buttons[7]);
-    expect(onChange).toHaveBeenLastCalledWith('10:00', '10:00', undefined, undefined);
-
-    fireEvent.click(buttons[9]);
-    expect(onChange).toHaveBeenLastCalledWith('10:15', '10:00', undefined, undefined);
-
-    fireEvent.click(buttons[10]);
-    expect(onChange).toHaveBeenLastCalledWith('10:00', '10:00', undefined, undefined);
+    expect(screen.getByText('5 min')).toBeInTheDocument();
+    expect(screen.getByText('1 hr')).toBeInTheDocument();
+    expect(screen.getByText('4 hr')).toBeInTheDocument();
+    expect(screen.getByText('Custom')).toBeInTheDocument();
   });
 
-  it('sets and clears dates from the active tab', () => {
+  it('clears time in inline mode', () => {
     const onChange = vi.fn();
+    render(<TimeRangePicker startTime="09:00" endTime="10:00" onChange={onChange} inline />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^clear$/i }));
+    expect(onChange).toHaveBeenCalledWith(undefined, undefined, undefined, undefined);
+  });
+
+  it('closes the popover when Done is clicked', () => {
+    render(<TimeRangePicker onChange={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /duration/i }));
+    expect(screen.getByText('Done')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Done'));
+    expect(screen.queryByText('Done')).not.toBeInTheDocument();
+  });
+
+  it('clears time in popover mode', () => {
+    const onChange = vi.fn();
+    render(<TimeRangePicker startTime="09:00" endTime="10:00" onChange={onChange} />);
+
+    // Open popover
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByText('Clear')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Clear'));
+    expect(onChange).toHaveBeenCalledWith(undefined, undefined, undefined, undefined);
+  });
+
+  it('shows date picker in inline mode when startDate is provided', () => {
     render(
       <TimeRangePicker
         startTime="09:00"
-        endTime="10:00"
-        startDate="2026-05-15"
-        onChange={onChange}
+        startDate={isoForLocalDate(2026, 4, 15)}
+        onChange={vi.fn()}
         inline
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /may \d+, 2026/i }));
-    fireEvent.click(screen.getByRole('button', { name: '20' }));
-    expect(onChange).toHaveBeenLastCalledWith(
-      '09:00',
-      '10:00',
-      isoForLocalDate(2026, 4, 20),
-      undefined,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: /may \d+, 2026/i }));
-    fireEvent.click(screen.getByRole('button', { name: /^clear$/i }));
-    expect(onChange).toHaveBeenLastCalledWith('09:00', '10:00', undefined, undefined);
+    // Should show a date button for the start date
+    expect(screen.getByRole('button', { name: /may \d+, 2026/i })).toBeInTheDocument();
   });
 
-  it('shows date prefix, next-day marker, done, and clear behavior in popover mode', () => {
-    const onChange = vi.fn();
-    render(
-      <TimeRangePicker
-        startTime="22:00"
-        endTime="06:00"
-        startDate="2026-05-15"
-        endDate="2026-05-16"
-        onChange={onChange}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: /schedule/i }));
-    expect(screen.getByText('May 15')).toBeInTheDocument();
-    expect(screen.getByText('+1')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText('Done'));
-    expect(screen.queryByText('Clear all')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /schedule/i }));
-    fireEvent.click(screen.getByText('Clear all'));
-    expect(onChange).toHaveBeenLastCalledWith(undefined, undefined, undefined, undefined);
-  });
-
-  it('closes when scrolling outside the popover', () => {
+  it('closes when Done is clicked in popover mode', () => {
     render(<TimeRangePicker onChange={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /add schedule/i }));
-    expect(screen.getByText('Night')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /duration/i }));
+    expect(screen.getByText('Done')).toBeInTheDocument();
 
-    fireEvent.scroll(window);
-    expect(screen.queryByText('Night')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('Done'));
+    expect(screen.queryByText('Done')).not.toBeInTheDocument();
   });
 });

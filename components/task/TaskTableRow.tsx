@@ -2,7 +2,13 @@
 
 import { useState } from 'react';
 import { Pencil, Trash2, CircleDashed, Loader2, CheckCircle2, Clock } from 'lucide-react';
-import { ClickableStatusBadge, PriorityFlag } from '@/components/ui/Badge';
+import {
+  ClickableStatusBadge,
+  PriorityFlag,
+  RecurringBadge,
+  OverdueBadge,
+} from '@/components/ui/Badge';
+import { isTaskOverdue } from '@/lib/taskUtils';
 import { Button } from '@/components/ui/Button';
 import { useTaskContext } from '@/context/TaskContext';
 import { cn } from '@/lib/cn';
@@ -22,6 +28,7 @@ interface TaskTableRowProps {
   onDelete: (id: string) => void;
   onStatusChange: (id: string, status: Task['status']) => void;
   isLast: boolean;
+  showCollection?: boolean;
 }
 
 export function TaskTableRow({
@@ -32,6 +39,7 @@ export function TaskTableRow({
   onDelete,
   onStatusChange,
   isLast,
+  showCollection = true,
 }: TaskTableRowProps) {
   const {
     state: { statusGroups },
@@ -70,11 +78,12 @@ export function TaskTableRow({
         <div className="flex items-center gap-2.5">
           <SIcon className={cn('h-4 w-4 shrink-0', sCls)} aria-hidden="true" />
           <div className="min-w-0">
-            <span
-              className="block truncate text-sm font-medium text-gray-900 dark:text-gray-100"
-              title={task.title}
-            >
-              {task.title}
+            <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-gray-900 dark:text-gray-100">
+              <span className="truncate" title={task.title}>
+                {task.title}
+              </span>
+              {task.recurring && <RecurringBadge className="shrink-0" />}
+              {isTaskOverdue(task) && <OverdueBadge className="shrink-0" />}
             </span>
             {task.description && (
               <span className="block max-w-xs truncate text-xs text-gray-400 dark:text-gray-600">
@@ -113,14 +122,16 @@ export function TaskTableRow({
         <PriorityFlag priority={task.priority} />
       </td>
 
-      {/* Collection */}
-      <td className="px-3 py-3">
-        {collectionName && (
-          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-            {collectionName}
-          </span>
-        )}
-      </td>
+      {/* Collection — hidden when already scoped to a collection */}
+      {showCollection && (
+        <td className="px-3 py-3">
+          {collectionName && (
+            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+              {collectionName}
+            </span>
+          )}
+        </td>
+      )}
 
       {/* Actions */}
       <td className="px-3 py-3 text-right">

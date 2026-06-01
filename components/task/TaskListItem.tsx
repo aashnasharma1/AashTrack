@@ -3,7 +3,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { Trash2, GripVertical, Pencil } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { PrioritySelector, ClickableStatusBadge } from '@/components/ui/Badge';
+import {
+  PrioritySelector,
+  ClickableStatusBadge,
+  RecurringBadge,
+  OverdueBadge,
+} from '@/components/ui/Badge';
+import { isTaskOverdue } from '@/lib/taskUtils';
 import { TimeRangePicker } from '@/components/ui/TimePicker';
 import { useTaskContext } from '@/context/TaskContext';
 import type { Collection, Task, TaskPatch } from '@/types/task';
@@ -111,8 +117,10 @@ export function TaskListItem({
             className="w-full text-left"
             title="Click to edit title"
           >
-            <span className="block truncate text-sm font-medium text-gray-900 hover:text-blue-700 dark:text-gray-100 dark:hover:text-blue-400">
-              {task.title}
+            <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-gray-900 hover:text-blue-700 dark:text-gray-100 dark:hover:text-blue-400">
+              <span className="truncate">{task.title}</span>
+              {task.recurring && <RecurringBadge className="shrink-0" />}
+              {isTaskOverdue(task) && <OverdueBadge className="shrink-0" />}
             </span>
           </button>
         )}
@@ -124,7 +132,7 @@ export function TaskListItem({
       </div>
 
       {/* Schedule */}
-      <div className="shrink-0">
+      <div className="min-w-0 overflow-hidden">
         <TimeRangePicker
           startTime={task.startTime}
           endTime={task.endTime}

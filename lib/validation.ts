@@ -25,6 +25,7 @@ export const taskSchema = z.object({
   endTime: z.string().optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
+  recurring: z.boolean().optional(),
 });
 
 export type TaskSchemaValues = z.infer<typeof taskSchema>;

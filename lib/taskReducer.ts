@@ -88,6 +88,10 @@ export function taskReducer(state: TasksState, action: TaskAction): TasksState {
         order: state.tasks.length,
         startTime: action.payload.startTime || undefined,
         endTime: action.payload.endTime || undefined,
+        startDate: action.payload.startDate || undefined,
+        endDate: action.payload.endDate || undefined,
+        recurring: action.payload.recurring || undefined,
+        recurrence: action.payload.recurrence || undefined,
       };
       return { ...state, tasks: [...state.tasks, task] };
     }
@@ -106,6 +110,10 @@ export function taskReducer(state: TasksState, action: TaskAction): TasksState {
                 collection: action.payload.collection.trim(),
                 startTime: action.payload.startTime || undefined,
                 endTime: action.payload.endTime || undefined,
+                startDate: action.payload.startDate || undefined,
+                endDate: action.payload.endDate || undefined,
+                recurring: action.payload.recurring || undefined,
+                recurrence: action.payload.recurrence || undefined,
               }
             : t,
         ),

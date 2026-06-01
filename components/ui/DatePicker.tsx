@@ -9,6 +9,7 @@ interface DatePickerProps {
   value?: string;
   onChange: (date: string | undefined) => void;
   placeholder?: string;
+  minDate?: string; // YYYY-MM-DD — days before this are disabled
 }
 
 function getDaysInMonth(year: number, month: number) {
@@ -19,7 +20,12 @@ function getFirstDayOfMonth(year: number, month: number) {
   return new Date(year, month, 1).getDay();
 }
 
-export function DatePicker({ value, onChange, placeholder = 'Select date' }: DatePickerProps) {
+export function DatePicker({
+  value,
+  onChange,
+  placeholder = 'Select date',
+  minDate,
+}: DatePickerProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const trigRef = useRef<HTMLButtonElement>(null);
@@ -80,7 +86,19 @@ export function DatePicker({ value, onChange, placeholder = 'Select date' }: Dat
   ];
   const dayNames = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
+  const isoForDay = (day: number) =>
+    `${displayYear}-${String(displayMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+  const isDayDisabled = (day: number) => !!minDate && isoForDay(day) < minDate;
+
+  const isPrevDisabled = () => {
+    if (!minDate) return false;
+    const [minY, minM] = minDate.split('-').map(Number);
+    return displayYear < (minY ?? 0) || (displayYear === minY && displayMonth <= (minM ?? 1) - 1);
+  };
+
   const handlePrev = () => {
+    if (isPrevDisabled()) return;
     if (displayMonth === 0) {
       setDisplayMonth(11);
       setDisplayYear(displayYear - 1);
@@ -99,9 +117,8 @@ export function DatePicker({ value, onChange, placeholder = 'Select date' }: Dat
   };
 
   const handleSelect = (day: number) => {
-    const d = new Date(displayYear, displayMonth, day);
-    const iso = d.toISOString().split('T')[0];
-    onChange(iso);
+    if (isDayDisabled(day)) return;
+    onChange(isoForDay(day));
     setOpen(false);
   };
 
@@ -127,6 +144,7 @@ export function DatePicker({ value, onChange, placeholder = 'Select date' }: Dat
         createPortal(
           <div
             ref={popRef}
+            data-picker-portal=""
             style={popStyle}
             className="rounded-lg border border-gray-200 bg-white p-3 shadow-xl dark:border-gray-700 dark:bg-gray-900"
           >
@@ -135,7 +153,11 @@ export function DatePicker({ value, onChange, placeholder = 'Select date' }: Dat
               <button
                 type="button"
                 onClick={handlePrev}
-                className="flex h-6 w-6 items-center justify-center rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                disabled={isPrevDisabled()}
+                className={cn(
+                  'flex h-6 w-6 items-center justify-center rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800',
+                  isPrevDisabled() && 'cursor-not-allowed opacity-30',
+                )}
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -170,15 +192,15 @@ export function DatePicker({ value, onChange, placeholder = 'Select date' }: Dat
                   key={i}
                   type="button"
                   onClick={() => day && handleSelect(day)}
-                  disabled={!day}
+                  disabled={!day || isDayDisabled(day)}
                   className={cn(
                     'flex h-6 w-6 items-center justify-center rounded text-[11px] font-medium transition-colors',
                     !day && 'opacity-0',
-                    day &&
-                      value ===
-                        `${displayYear}-${String(displayMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+                    day && isDayDisabled(day) && 'cursor-not-allowed opacity-30',
+                    day && !isDayDisabled(day) && value === isoForDay(day)
                       ? 'bg-blue-600 text-white'
                       : day &&
+                          !isDayDisabled(day) &&
                           'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800',
                   )}
                 >

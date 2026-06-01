@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Flag } from 'lucide-react';
+import { Flag, Repeat } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import type { Priority, StatusGroup } from '@/types/task';
 import { PRIORITY_LABELS } from '@/types/task';
@@ -8,9 +8,9 @@ import { PRIORITY_LABELS } from '@/types/task';
 // ── Priority flag ─────────────────────────────────────────────────────────────
 
 const FLAG_COLORS: Record<Priority, string> = {
-  high: 'text-red-500 fill-red-500',
-  medium: 'text-amber-400 fill-amber-400',
-  low: 'text-gray-300 fill-gray-300 dark:text-gray-500 dark:fill-gray-500',
+  high: 'text-red-500',
+  medium: 'text-amber-400',
+  low: 'text-emerald-500',
 };
 
 export function PriorityFlag({ priority, className }: { priority: Priority; className?: string }) {
@@ -27,6 +27,32 @@ export function PriorityFlag({ priority, className }: { priority: Priority; clas
 }
 
 export { PriorityFlag as PriorityBadge };
+
+export function RecurringBadge({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn('inline-flex shrink-0 text-blue-400 dark:text-blue-500', className)}
+      title="Recurring task"
+      aria-label="Recurring task"
+    >
+      <Repeat className="h-3 w-3" aria-hidden="true" />
+    </span>
+  );
+}
+
+export function OverdueBadge({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full bg-amber-50 px-1.5 py-px text-[10px] font-semibold text-amber-600 dark:bg-amber-950/40 dark:text-amber-400',
+        className,
+      )}
+      title="End time has passed"
+    >
+      Late
+    </span>
+  );
+}
 
 // ── Priority selector (inline popover) ───────────────────────────────────────
 

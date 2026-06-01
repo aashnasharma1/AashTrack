@@ -37,9 +37,9 @@ const STATUS_ICONS: Record<string, React.ElementType> = {
 };
 
 const PRIORITY_CLS: Record<Priority, string> = {
-  high: 'text-red-500 fill-red-500',
-  medium: 'text-amber-400 fill-amber-400',
-  low: 'text-gray-300 fill-gray-300 dark:text-gray-600',
+  high: 'text-red-500',
+  medium: 'text-amber-400',
+  low: 'text-emerald-500',
 };
 
 // ── Task dropdown ─────────────────────────────────────────────────────────────
@@ -225,7 +225,7 @@ export function TimeTracker() {
   return (
     <div
       data-tour="dashboard-tracker"
-      className="flex h-full flex-col rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900"
+      className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900"
     >
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
@@ -315,7 +315,7 @@ export function TimeTracker() {
           <div className="flex justify-center gap-3">
             <button
               onClick={isPaused ? resume : pause}
-              className="flex items-center gap-2 rounded-xl bg-violet-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-violet-700 active:scale-95"
+              className="flex items-center gap-2 rounded-xl bg-blue-500 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-600 active:scale-95"
             >
               {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
               {isPaused ? 'Resume' : 'Pause'}
@@ -331,7 +331,7 @@ export function TimeTracker() {
         </div>
       ) : (
         /* ── Idle ── */
-        <div className="flex flex-1 flex-col gap-3">
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
           <TaskDropdown
             tasks={activeTasks}
             statusGroups={statusGroups}
@@ -354,11 +354,11 @@ export function TimeTracker() {
 
           {/* Quick start — rich task cards */}
           {suggestions.length > 0 && (
-            <div className="mt-1 flex flex-1 flex-col">
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-600">
+            <div className="mt-1 flex min-h-0 flex-1 flex-col">
+              <p className="mb-2 shrink-0 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-600">
                 Quick start
               </p>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1.5 overflow-y-auto">
                 {suggestions.map((task) => {
                   const grp = statusGroups.find((g) => g.id === task.status);
                   const StatusIcon = STATUS_ICONS[task.status] ?? CircleDashed;

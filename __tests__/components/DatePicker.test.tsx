@@ -4,7 +4,7 @@ import { DatePicker } from '@/components/ui/DatePicker';
 
 describe('DatePicker', () => {
   const isoForLocalDate = (year: number, month: number, day: number) =>
-    new Date(year, month, day).toISOString().split('T')[0];
+    `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
   beforeEach(() => {
     vi.useFakeTimers();
