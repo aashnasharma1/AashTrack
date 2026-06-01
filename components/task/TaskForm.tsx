@@ -8,8 +8,14 @@ import { useRef } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { useTaskContext } from '@/context/TaskContext';
 import { taskSchema, TITLE_MAX, DESCRIPTION_MAX } from '@/lib/validation';
-import { toHHMM, fromHHMM, todayISO } from '@/lib/timeUtils';
-import { DurationSchedulePicker } from './DurationSchedulePicker';
+import {
+  toHHMM,
+  fromHHMM,
+  todayISO,
+  calcEnd,
+  DURATION_OPTS,
+  DEFAULT_DURATION,
+} from '@/lib/timeUtils';
 import { RecurrencePicker } from './RecurrencePicker';
 import { BulkTaskTable, type BulkRow } from './BulkTaskTable';
 import type { TaskSchemaValues } from '@/lib/validation';
@@ -26,7 +32,15 @@ const PRIORITY_OPTS: { value: Priority; label: string; flagCls: string }[] = [
   { value: 'low', label: 'Low', flagCls: 'text-emerald-500' },
 ];
 
-// ── FieldChip — generic chip-dropdown used only inside this form ───────────────
+/** Round up to the next 15-minute boundary. */
+function snapToNext15(date: Date): { hhmm: string; iso: string } {
+  const totalMin = date.getHours() * 60 + date.getMinutes();
+  const snapped = Math.ceil((totalMin + 1) / 15) * 15;
+  const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return { hhmm: toHHMM(snapped % (24 * 60)), iso };
+}
+
+// ── FieldChip ─────────────────────────────────────────────────────────────────
 
 function FieldChip({
   trigger,
@@ -79,6 +93,237 @@ function FieldChip({
   );
 }
 
+// ── ScheduleFields — always-visible inline Start Time / Duration / End Time ───
+
+interface ScheduleFieldsProps {
+  startTime: string;
+  startDate: string;
+  endTime: string;
+  endDate: string;
+  onStartTimeChange: (hhmm: string) => void;
+  onStartDateChange: (iso: string) => void;
+  onDurationChange: (minutes: number, endTime: string, endDate: string) => void;
+  startTimeError?: string;
+  startDateError?: string;
+  endTimeError?: string;
+}
+
+function ScheduleFields({
+  startTime,
+  startDate,
+  endTime,
+  onStartTimeChange,
+  onStartDateChange,
+  onDurationChange,
+  startTimeError,
+  startDateError,
+  endTimeError,
+}: ScheduleFieldsProps) {
+  const [durationMin, setDurationMin] = useState(DEFAULT_DURATION);
+  const [isCustom, setIsCustom] = useState(false);
+  const [customInput, setCustomInput] = useState('');
+  const [customError, setCustomError] = useState('');
+
+  // Sync duration back from props when editing an existing task
+  useEffect(() => {
+    if (startTime && endTime) {
+      let diff = fromHHMM(endTime) - fromHHMM(startTime);
+      if (diff < 0) diff += 24 * 60;
+      if (diff > 0) {
+        setDurationMin(diff);
+        const isPreset = DURATION_OPTS.some((o) => o.minutes === diff);
+        setIsCustom(!isPreset && diff !== 0);
+        if (!isPreset && diff !== 0) setCustomInput(String(diff));
+        else setIsCustom(false);
+      }
+    }
+  }, []); // intentionally runs once on mount for edit-mode hydration
+
+  const handleStartTimeInput = (raw: string) => {
+    onStartTimeChange(raw);
+    if (raw && startDate) {
+      const { endTime: et, endDate: ed } = calcEnd(raw, startDate, durationMin);
+      onDurationChange(durationMin, et, ed);
+    }
+  };
+
+  const handleStartDateInput = (raw: string) => {
+    onStartDateChange(raw);
+    if (startTime && raw) {
+      const { endTime: et, endDate: ed } = calcEnd(startTime, raw, durationMin);
+      onDurationChange(durationMin, et, ed);
+    }
+  };
+
+  const handleDurationSelect = (mins: number) => {
+    setDurationMin(mins);
+    setIsCustom(false);
+    setCustomInput('');
+    setCustomError('');
+    if (startTime && startDate) {
+      const { endTime: et, endDate: ed } = calcEnd(startTime, startDate, mins);
+      onDurationChange(mins, et, ed);
+    }
+  };
+
+  const handleCustomInput = (val: string) => {
+    setCustomInput(val);
+    const mins = parseInt(val, 10);
+    if (!val) {
+      setCustomError('Duration is required.');
+      return;
+    }
+    if (isNaN(mins) || mins <= 0) {
+      setCustomError('Duration must be greater than 0 minutes.');
+      return;
+    }
+    if (mins > 1440) {
+      setCustomError('Duration cannot exceed 1440 minutes.');
+      return;
+    }
+    setCustomError('');
+    setDurationMin(mins);
+    if (startTime && startDate) {
+      const { endTime: et, endDate: ed } = calcEnd(startTime, startDate, mins);
+      onDurationChange(mins, et, ed);
+    }
+  };
+
+  const selectedDurLabel = isCustom
+    ? 'Custom'
+    : (DURATION_OPTS.find((o) => o.minutes === durationMin)?.label ?? '30 min');
+
+  return (
+    <div className="mt-2 space-y-3 rounded-xl border border-gray-100 bg-gray-50/60 p-3 dark:border-gray-800 dark:bg-gray-800/30">
+      {/* Row: Start Time + Start Date */}
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <label
+            htmlFor="sf-start-time"
+            className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-gray-400"
+          >
+            Start Time *
+          </label>
+          <input
+            id="sf-start-time"
+            type="time"
+            value={startTime}
+            onChange={(e) => handleStartTimeInput(e.target.value)}
+            className={cn(
+              'w-full rounded-lg border bg-white px-2.5 py-1.5 text-sm text-gray-800 outline-none transition-colors dark:bg-gray-800 dark:text-gray-100',
+              startTimeError
+                ? 'border-red-400 focus:border-red-500'
+                : 'border-gray-200 focus:border-blue-400 dark:border-gray-700',
+            )}
+          />
+          {startTimeError && <p className="mt-1 text-xs text-red-500">{startTimeError}</p>}
+        </div>
+        <div className="flex-1">
+          <label
+            htmlFor="sf-start-date"
+            className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-gray-400"
+          >
+            Start Date *
+          </label>
+          <input
+            id="sf-start-date"
+            type="date"
+            value={startDate}
+            min={todayISO()}
+            onChange={(e) => handleStartDateInput(e.target.value)}
+            className={cn(
+              'w-full rounded-lg border bg-white px-2.5 py-1.5 text-sm text-gray-800 outline-none transition-colors dark:bg-gray-800 dark:text-gray-100',
+              startDateError
+                ? 'border-red-400 focus:border-red-500'
+                : 'border-gray-200 focus:border-blue-400 dark:border-gray-700',
+            )}
+          />
+          {startDateError && <p className="mt-1 text-xs text-red-500">{startDateError}</p>}
+        </div>
+      </div>
+
+      {/* Row: Duration dropdown */}
+      <div>
+        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+          Duration *
+        </label>
+        <div className="flex flex-wrap gap-1.5">
+          {DURATION_OPTS.map((opt) => {
+            const active = opt.minutes === 0 ? isCustom : !isCustom && durationMin === opt.minutes;
+            return (
+              <button
+                key={opt.label}
+                type="button"
+                onClick={() => {
+                  if (opt.minutes === 0) {
+                    setIsCustom(true);
+                    setCustomInput(String(durationMin));
+                    setCustomError('');
+                  } else {
+                    handleDurationSelect(opt.minutes);
+                  }
+                }}
+                className={cn(
+                  'rounded-lg px-2.5 py-1 text-xs font-medium transition-colors',
+                  active
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-gray-700',
+                )}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        {isCustom && (
+          <div className="mt-2 flex items-center gap-2">
+            <input
+              type="number"
+              min="1"
+              max="1440"
+              value={customInput}
+              onChange={(e) => handleCustomInput(e.target.value)}
+              placeholder="e.g. 45"
+              autoFocus
+              className="w-20 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-sm text-gray-800 outline-none focus:border-blue-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+            />
+            <span className="text-xs text-gray-400">minutes</span>
+          </div>
+        )}
+        {customError && <p className="mt-1 text-xs text-red-500">{customError}</p>}
+      </div>
+
+      {/* Row: End Time (read-only) */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1">
+          <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+            End Time (auto)
+          </label>
+          <div
+            className={cn(
+              'flex items-center rounded-lg border border-gray-200 bg-gray-100 px-2.5 py-1.5 dark:border-gray-700 dark:bg-gray-700',
+              endTimeError && 'border-red-400',
+            )}
+          >
+            <span className="font-mono text-sm text-gray-500 dark:text-gray-400">
+              {endTime || '——:——'}
+            </span>
+            <span className="ml-2 text-[10px] text-gray-400">read-only</span>
+          </div>
+          {endTimeError && <p className="mt-1 text-xs text-red-500">{endTimeError}</p>}
+        </div>
+        <div className="flex-1">
+          <p className="text-[10px] text-gray-400">
+            {selectedDurLabel !== 'Custom'
+              ? `${selectedDurLabel} duration`
+              : `${durationMin} min duration`}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main form ─────────────────────────────────────────────────────────────────
 
 interface TaskFormProps {
@@ -110,22 +355,60 @@ export function TaskForm({
   const [mode, setMode] = useState<'single' | 'bulk'>('single');
   const [bulkRows, setBulkRows] = useState<BulkRow[]>([]);
 
-  const makeBulkRow = (): BulkRow => ({
-    id: Math.random().toString(36).slice(2),
-    title: '',
-    priority: 'low',
-    status: statusGroups[0]?.id ?? 'todo',
-    collection: lockedCollection ?? collections[0]?.slug ?? '',
-  });
+  const makeBulkRow = (): BulkRow => {
+    const now = new Date();
+    const { hhmm, iso } = snapToNext15(now);
+    const { endTime, endDate } = calcEnd(hhmm, iso, DEFAULT_DURATION);
+    return {
+      id: Math.random().toString(36).slice(2),
+      title: '',
+      priority: 'low',
+      status: statusGroups[0]?.id ?? 'todo',
+      collection: lockedCollection ?? collections[0]?.slug ?? '',
+      startTime: hhmm,
+      startDate: iso,
+      endTime,
+      endDate,
+      durationMin: DEFAULT_DURATION,
+    };
+  };
 
   const updateBulkRow = (id: string, patch: Partial<BulkRow>) =>
     setBulkRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
 
   const handleBulkSubmit = () => {
-    const valid = bulkRows.filter(
-      (r) => r.title.trim().length > 0 && r.title.length <= TITLE_MAX && !r.titleError,
+    const now = new Date();
+    const nowTotalMin = now.getHours() * 60 + now.getMinutes();
+    const todayStr = todayISO();
+
+    const valid = bulkRows.filter((r) => {
+      if (!r.title.trim() || r.title.length > TITLE_MAX || r.titleError) return false;
+      if (!r.startTime || !r.startDate) return false;
+      if (r.durationMin <= 0) return false;
+      // start must be >= now
+      if (r.startDate === todayStr && fromHHMM(r.startTime) < nowTotalMin) return false;
+      if (r.startDate < todayStr) return false;
+      return true;
+    });
+
+    // Mark errors on invalid rows that have a title filled in
+    setBulkRows((prev) =>
+      prev.map((r) => {
+        if (!r.title.trim()) return r;
+        const errs: string[] = [];
+        if (!r.startTime) errs.push('Start time required');
+        if (!r.startDate || r.startDate < todayStr) errs.push('Start date must be today or future');
+        if (r.startDate === todayStr && r.startTime && fromHHMM(r.startTime) < nowTotalMin)
+          errs.push('Start time is in the past');
+        if (r.durationMin <= 0) errs.push('Duration must be > 0');
+        return errs.length
+          ? { ...r, scheduleError: errs.join('. ') }
+          : { ...r, scheduleError: undefined };
+      }),
     );
+
     if (!valid.length) return;
+
     valid.forEach((row) =>
       addTask({
         title: row.title.trim(),
@@ -133,6 +416,10 @@ export function TaskForm({
         priority: row.priority,
         status: row.status,
         collection: row.collection,
+        startTime: row.startTime,
+        endTime: row.endTime,
+        startDate: row.startDate,
+        endDate: row.endDate,
       }),
     );
     handleClose();
@@ -155,6 +442,8 @@ export function TaskForm({
       collection: lockedCollection ?? '',
       startTime: '',
       endTime: '',
+      startDate: '',
+      endDate: '',
     },
   });
 
@@ -164,31 +453,35 @@ export function TaskForm({
       setBulkRows(Array.from({ length: 5 }, makeBulkRow));
       setRecurrence(defaultValues?.recurrence ?? null);
       setConflictError(null);
-      reset(
-        defaultValues
-          ? {
-              title: defaultValues.title,
-              description: defaultValues.description,
-              priority: defaultValues.priority,
-              status: defaultValues.status,
-              collection: defaultValues.collection,
-              startTime: defaultValues.startTime ?? '',
-              endTime: defaultValues.endTime ?? '',
-              startDate: defaultValues.startDate ?? '',
-              endDate: defaultValues.endDate ?? '',
-            }
-          : {
-              title: '',
-              description: '',
-              priority: 'low',
-              status: 'todo',
-              collection: lockedCollection ?? '',
-              startTime: '',
-              endTime: '',
-              startDate: '',
-              endDate: '',
-            },
-      );
+
+      if (defaultValues) {
+        reset({
+          title: defaultValues.title,
+          description: defaultValues.description,
+          priority: defaultValues.priority,
+          status: defaultValues.status,
+          collection: defaultValues.collection,
+          startTime: defaultValues.startTime ?? '',
+          endTime: defaultValues.endTime ?? '',
+          startDate: defaultValues.startDate ?? '',
+          endDate: defaultValues.endDate ?? '',
+        });
+      } else {
+        // Auto-populate start time to current datetime (snapped to next 15 min)
+        const { hhmm, iso } = snapToNext15(new Date());
+        const { endTime, endDate } = calcEnd(hhmm, iso, DEFAULT_DURATION);
+        reset({
+          title: '',
+          description: '',
+          priority: 'low',
+          status: 'todo',
+          collection: lockedCollection ?? '',
+          startTime: hhmm,
+          endTime,
+          startDate: iso,
+          endDate,
+        });
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultValues, lockedCollection, reset]);
@@ -199,6 +492,7 @@ export function TaskForm({
   const startTimeValue = watch('startTime');
   const endTimeValue = watch('endTime');
   const startDateValue = watch('startDate');
+  const endDateValue = watch('endDate');
   const titleValue = watch('title');
   const descriptionValue = watch('description');
 
@@ -211,6 +505,20 @@ export function TaskForm({
 
   const handleFormSubmit = (values: TaskSchemaValues) => {
     const base = values as TaskFormValues;
+
+    // Submission-time check: start datetime must be >= now
+    if (base.startTime && base.startDate) {
+      const now = new Date();
+      const nowTotalMin = now.getHours() * 60 + now.getMinutes();
+      const todayStr = todayISO();
+      if (
+        base.startDate < todayStr ||
+        (base.startDate === todayStr && fromHHMM(base.startTime) < nowTotalMin)
+      ) {
+        setConflictError('Start time cannot be in the past. Please select a future time.');
+        return;
+      }
+    }
 
     if (base.startTime && base.endTime) {
       const newStart = fromHHMM(base.startTime);
@@ -265,15 +573,21 @@ export function TaskForm({
   const statusGroup = statusGroups.find((g) => g.id === statusValue) ?? statusGroups[0];
   const priorityCfg = PRIORITY_OPTS.find((o) => o.value === priorityValue) ?? PRIORITY_OPTS[1];
   const collectionName = collections.find((c) => c.slug === collectionValue)?.name;
-  const validBulkCount = bulkRows.filter(
-    (r) => r.title.trim().length > 0 && r.title.length <= TITLE_MAX && !r.titleError,
-  ).length;
+  const validBulkCount = bulkRows.filter((r) => {
+    if (!r.title.trim() || r.title.length > TITLE_MAX || r.titleError) return false;
+    if (!r.startTime || !r.startDate) return false;
+    if (r.durationMin <= 0) return false;
+    const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+    if (r.startDate < todayISO()) return false;
+    if (r.startDate === todayISO() && fromHHMM(r.startTime) < nowMin) return false;
+    return true;
+  }).length;
 
   return (
     <Modal
       open={open}
       onClose={handleClose}
-      className={mode === 'bulk' && !isEditing ? 'max-w-3xl' : 'max-w-xl'}
+      className={mode === 'bulk' && !isEditing ? 'max-w-4xl' : 'max-w-xl'}
     >
       {/* Mode toggle — create only */}
       {!isEditing && (
@@ -335,12 +649,12 @@ export function TaskForm({
           </div>
 
           {/* Description */}
-          <div className="mb-6">
+          <div className="mb-4">
             <textarea
               {...register('description')}
               placeholder="Add a description…"
               maxLength={DESCRIPTION_MAX}
-              rows={3}
+              rows={2}
               className="w-full resize-none bg-transparent text-sm leading-relaxed text-gray-500 outline-none placeholder:text-gray-300 dark:text-gray-400 dark:placeholder:text-gray-700"
             />
             <div className="mt-1 flex items-center justify-between">
@@ -357,8 +671,53 @@ export function TaskForm({
 
           <div className="-mx-5 border-t border-gray-100 dark:border-gray-800" />
 
+          {/* Scheduling fields — always visible */}
+          <ScheduleFields
+            startTime={startTimeValue ?? ''}
+            startDate={startDateValue ?? ''}
+            endTime={endTimeValue ?? ''}
+            endDate={endDateValue ?? ''}
+            onStartTimeChange={(hhmm) => {
+              setValue('startTime', hhmm, { shouldValidate: true });
+              if (hhmm && startDateValue) {
+                const dur = endTimeValue
+                  ? (() => {
+                      const d = fromHHMM(endTimeValue) - fromHHMM(hhmm);
+                      return d > 0 ? d : DEFAULT_DURATION;
+                    })()
+                  : DEFAULT_DURATION;
+                const { endTime: et, endDate: ed } = calcEnd(hhmm, startDateValue, dur);
+                setValue('endTime', et);
+                setValue('endDate', ed);
+              }
+            }}
+            onStartDateChange={(iso) => {
+              setValue('startDate', iso, { shouldValidate: true });
+              if (startTimeValue && iso) {
+                const dur = endTimeValue
+                  ? (() => {
+                      const d = fromHHMM(endTimeValue) - fromHHMM(startTimeValue);
+                      return d > 0 ? d : DEFAULT_DURATION;
+                    })()
+                  : DEFAULT_DURATION;
+                const { endTime: et, endDate: ed } = calcEnd(startTimeValue, iso, dur);
+                setValue('endTime', et);
+                setValue('endDate', ed);
+              }
+            }}
+            onDurationChange={(_mins, et, ed) => {
+              setValue('endTime', et);
+              setValue('endDate', ed);
+            }}
+            startTimeError={errors.startTime?.message}
+            startDateError={errors.startDate?.message}
+            endTimeError={errors.endTime?.message}
+          />
+
+          <div className="-mx-5 mt-4 border-t border-gray-100 dark:border-gray-800" />
+
           {/* Field chips */}
-          <div className="flex flex-wrap items-center gap-2 py-4">
+          <div className="flex flex-wrap items-center gap-2 py-3">
             {/* Status */}
             <FieldChip
               trigger={
@@ -489,39 +848,13 @@ export function TaskForm({
 
             {/* Recurrence */}
             <RecurrencePicker value={recurrence} onChange={setRecurrence} />
-
-            {/* Duration + schedule */}
-            <DurationSchedulePicker
-              startTime={startTimeValue || undefined}
-              endTime={endTimeValue || undefined}
-              startDate={startDateValue || undefined}
-              onChange={(s, e, sd, ed) => {
-                setValue('startTime', s);
-                setValue('endTime', e);
-                setValue('startDate', sd);
-                setValue('endDate', ed);
-              }}
-              onClear={() => {
-                setValue('startTime', '');
-                setValue('endTime', '');
-                setValue('startDate', '');
-                setValue('endDate', '');
-              }}
-            />
           </div>
-
-          {/* Time/Date errors */}
-          {(errors.startTime || errors.startDate || errors.endTime) && (
-            <p className="mb-2 text-xs text-red-500">
-              {errors.startTime?.message || errors.startDate?.message || errors.endTime?.message}
-            </p>
-          )}
 
           {errors.collection && (
             <p className="-mt-1 mb-2 text-xs text-red-500">{errors.collection.message}</p>
           )}
           {conflictError && (
-            <p className="-mt-1 mb-2 flex items-center gap-1.5 text-xs text-red-500">
+            <p className="mb-2 flex items-center gap-1.5 text-xs text-red-500">
               <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
               {conflictError}
             </p>

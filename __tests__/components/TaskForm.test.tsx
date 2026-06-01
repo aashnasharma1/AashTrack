@@ -5,6 +5,7 @@ import type { ComponentProps } from 'react';
 import { TaskForm } from '@/components/task/TaskForm';
 import { TaskProvider } from '@/context/TaskContext';
 import type { Task } from '@/types/task';
+import { todayISO } from '@/lib/timeUtils';
 
 const collections = [
   { id: '1', name: 'Work', slug: 'work', createdAt: new Date().toISOString() },
@@ -17,6 +18,25 @@ const defaultProps = {
   onSubmit: vi.fn(),
   collections,
 };
+
+/** A task with a start time guaranteed to be in the future (23:30 → 23:59 today). */
+function futureTask(overrides: Partial<Task> = {}): Task {
+  return {
+    id: '1',
+    title: 'Existing',
+    description: '',
+    priority: 'low',
+    status: 'todo',
+    collection: 'work',
+    createdAt: new Date().toISOString(),
+    order: 0,
+    startTime: '23:30',
+    endTime: '23:59',
+    startDate: todayISO(),
+    endDate: todayISO(),
+    ...overrides,
+  };
+}
 
 function renderForm(props: Partial<ComponentProps<typeof TaskForm>> = {}) {
   return render(
@@ -40,20 +60,9 @@ describe('TaskForm', () => {
   });
 
   it('renders in edit mode with defaults', () => {
-    const task: Task = {
-      id: '1',
-      title: 'Edit me',
-      description: 'Existing details',
-      priority: 'high',
-      status: 'done',
-      collection: 'work',
-      createdAt: new Date().toISOString(),
-      order: 0,
-      startTime: '09:00',
-      endTime: '10:00',
-    };
-
-    renderForm({ defaultValues: task });
+    renderForm({
+      defaultValues: futureTask({ title: 'Edit me', description: 'Existing details' }),
+    });
 
     expect(screen.getByDisplayValue('Edit me')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Existing details')).toBeInTheDocument();
@@ -65,17 +74,41 @@ describe('TaskForm', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('shows validation errors on empty submit', async () => {
+  it('shows title and collection validation errors on empty submit after clearing fields', async () => {
     const user = userEvent.setup();
     renderForm();
 
+    // Clear the auto-populated title field (it's empty by default, just submit)
     await user.click(screen.getByRole('button', { name: /create task/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/title is required/i)).toBeInTheDocument();
       expect(screen.getByText(/collection is required/i)).toBeInTheDocument();
-      expect(screen.getByText(/start time is required/i)).toBeInTheDocument();
     });
+  });
+
+  it('auto-populates start time and date on open in create mode', () => {
+    renderForm();
+    // The start time input should have a value (auto-set to next 15-min boundary)
+    const startTimeInput = screen.getByLabelText(/start time/i) as HTMLInputElement;
+    expect(startTimeInput.value).toMatch(/^\d{2}:\d{2}$/);
+
+    // The start date input should default to today
+    const startDateInput = screen.getByLabelText(/start date/i) as HTMLInputElement;
+    expect(startDateInput.value).toBe(todayISO());
+  });
+
+  it('shows end time (read-only) that updates when start time changes', async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    // Change start time; end time should update
+    const startTimeInput = screen.getByLabelText(/start time/i);
+    await user.clear(startTimeInput);
+    await user.type(startTimeInput, '08:00');
+
+    // End Time label should be visible
+    expect(screen.getByText(/end time/i)).toBeInTheDocument();
   });
 
   it('prevents title exceeding 30 characters with maxLength', async () => {
@@ -85,7 +118,6 @@ describe('TaskForm', () => {
     const titleInput = screen.getByPlaceholderText('Task name') as HTMLInputElement;
     await user.type(titleInput, 'a'.repeat(35));
 
-    // maxLength attribute prevents typing beyond 30
     expect(titleInput.value.length).toBeLessThanOrEqual(30);
     expect(screen.getByText(/30 \/ 30 characters/)).toBeInTheDocument();
   });
@@ -97,7 +129,6 @@ describe('TaskForm', () => {
     const descInput = screen.getByPlaceholderText('Add a description…') as HTMLTextAreaElement;
     await user.type(descInput, 'b'.repeat(301));
 
-    // Counter should show 300 / 300 (maxLength prevents typing 301st char)
     expect(screen.getByText(/300 \/ 300 characters/)).toBeInTheDocument();
   });
 
@@ -107,26 +138,30 @@ describe('TaskForm', () => {
 
     const titleInput = screen.getByPlaceholderText('Task name');
     await user.type(titleInput, 'Test');
-
-    // Check for counter pattern "4 / 30 characters"
     expect(screen.getByText(/4 \/ 30 characters/)).toBeInTheDocument();
 
     const descInput = screen.getByPlaceholderText('Add a description…');
     await user.type(descInput, 'Description');
-
-    // Check for counter pattern "11 / 300 characters"
     expect(screen.getByText(/11 \/ 300 characters/)).toBeInTheDocument();
+  });
+
+  it('shows correct duration options in the schedule section', () => {
+    renderForm();
+    expect(screen.getByRole('button', { name: '15 min' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '30 min' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '45 min' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '1 hour' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '2 hours' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Custom' })).toBeInTheDocument();
   });
 
   it('selects priority and collection from chip menus', async () => {
     const user = userEvent.setup();
     renderForm();
 
-    // Priority chip — default is 'low'
     await user.click(screen.getByRole('button', { name: /low/i }));
     await user.click(screen.getByText('High'));
 
-    // Collection chip
     await user.click(screen.getByRole('button', { name: /collection/i }));
     await user.click(screen.getByText('Work'));
 
@@ -134,24 +169,11 @@ describe('TaskForm', () => {
     expect(screen.getByRole('button', { name: /work/i })).toBeInTheDocument();
   });
 
-  it('calls onSubmit with selected values when time is set', async () => {
+  it('calls onSubmit with selected values when editing with a future time', async () => {
     const onSubmit = vi.fn();
     const user = userEvent.setup();
-    const task: Task = {
-      id: '1',
-      title: 'Existing',
-      description: '',
-      priority: 'low',
-      status: 'todo',
-      collection: 'work',
-      createdAt: new Date().toISOString(),
-      order: 0,
-      startTime: '09:00',
-      endTime: '10:00',
-      startDate: new Date().toISOString().split('T')[0],
-    };
 
-    renderForm({ onSubmit, defaultValues: task });
+    renderForm({ onSubmit, defaultValues: futureTask({ title: 'Existing' }) });
 
     const titleInput = screen.getByPlaceholderText('Task name');
     await user.clear(titleInput);
@@ -173,21 +195,12 @@ describe('TaskForm', () => {
   it('uses a locked collection and hides the collection chip', async () => {
     const onSubmit = vi.fn();
     const user = userEvent.setup();
-    const task: Task = {
-      id: '1',
-      title: '',
-      description: '',
-      priority: 'low',
-      status: 'todo',
-      collection: 'personal',
-      createdAt: new Date().toISOString(),
-      order: 0,
-      startTime: '09:00',
-      endTime: '10:00',
-      startDate: new Date().toISOString().split('T')[0],
-    };
 
-    renderForm({ onSubmit, lockedCollection: 'personal', defaultValues: task });
+    renderForm({
+      onSubmit,
+      lockedCollection: 'personal',
+      defaultValues: futureTask({ collection: 'personal', title: '' }),
+    });
 
     expect(screen.queryByRole('button', { name: /collection/i })).not.toBeInTheDocument();
 

@@ -26,6 +26,32 @@ export function addOneDay(iso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Given a startTime HH:MM, startDate ISO, and duration minutes, compute endTime + endDate. */
+export function calcEnd(
+  startTime: string,
+  startDate: string,
+  durationMin: number,
+): { endTime: string; endDate: string } {
+  const startMin = fromHHMM(startTime);
+  const total = startMin + durationMin;
+  const endTime = toHHMM(total % (24 * 60));
+  const endDate = total >= 24 * 60 ? addOneDay(startDate) : startDate;
+  return { endTime, endDate };
+}
+
+// ── Scheduling constants ──────────────────────────────────────────────────────
+
+export const DURATION_OPTS = [
+  { label: '15 min', minutes: 15 },
+  { label: '30 min', minutes: 30 },
+  { label: '45 min', minutes: 45 },
+  { label: '1 hour', minutes: 60 },
+  { label: '2 hours', minutes: 120 },
+  { label: 'Custom', minutes: 0 },
+] as const;
+
+export const DEFAULT_DURATION = 30;
+
 // ── Timeline / scheduling utilities ──────────────────────────────────────────
 
 /** Parse "HH:MM" to total minutes (alias matching DailyTimeline naming). */
