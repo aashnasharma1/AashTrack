@@ -2,6 +2,7 @@
 
 import { X, Plus } from 'lucide-react';
 import type { Collection, Priority, StatusGroup } from '@/types/task';
+import { TITLE_MAX } from '@/lib/validation';
 
 export interface BulkRow {
   id: string;
@@ -9,6 +10,7 @@ export interface BulkRow {
   priority: Priority;
   status: string;
   collection: string;
+  titleError?: string;
 }
 
 export interface BulkTaskTableProps {
@@ -67,13 +69,29 @@ export function BulkTaskTable({
               <tr key={row.id} className="border-b border-gray-50 dark:border-gray-800/50">
                 <td className="py-1.5 text-center text-gray-400">{idx + 1}</td>
                 <td className="py-1.5 pl-2">
-                  <input
-                    type="text"
-                    value={row.title}
-                    onChange={(e) => onUpdateRow(row.id, { title: e.target.value })}
-                    placeholder="Task name"
-                    className="w-full rounded border border-gray-200 bg-transparent px-2 py-1 text-xs text-gray-900 outline-none focus:border-blue-400 dark:border-gray-700 dark:text-gray-100"
-                  />
+                  <div>
+                    <input
+                      type="text"
+                      value={row.title}
+                      onChange={(e) => {
+                        const newTitle = e.target.value;
+                        const error =
+                          newTitle.trim().length > 0 && newTitle.length > TITLE_MAX
+                            ? `Task title cannot exceed ${TITLE_MAX} characters.`
+                            : undefined;
+                        onUpdateRow(row.id, { title: newTitle, titleError: error });
+                      }}
+                      maxLength={TITLE_MAX}
+                      placeholder="Task name"
+                      className="w-full rounded border border-gray-200 bg-transparent px-2 py-1 text-xs text-gray-900 outline-none focus:border-blue-400 dark:border-gray-700 dark:text-gray-100"
+                    />
+                    {row.titleError && (
+                      <p className="mt-0.5 text-xs text-red-500">{row.titleError}</p>
+                    )}
+                    <span className="text-xs text-gray-400">
+                      {row.title.length} / {TITLE_MAX}
+                    </span>
+                  </div>
                 </td>
                 <td className="py-1.5 pl-2">
                   <select

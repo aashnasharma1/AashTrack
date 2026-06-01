@@ -74,7 +74,48 @@ describe('TaskForm', () => {
     await waitFor(() => {
       expect(screen.getByText(/title is required/i)).toBeInTheDocument();
       expect(screen.getByText(/collection is required/i)).toBeInTheDocument();
+      expect(screen.getByText(/start time is required/i)).toBeInTheDocument();
     });
+  });
+
+  it('prevents title exceeding 30 characters with maxLength', async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const titleInput = screen.getByPlaceholderText('Task name') as HTMLInputElement;
+    await user.type(titleInput, 'a'.repeat(35));
+
+    // maxLength attribute prevents typing beyond 30
+    expect(titleInput.value.length).toBeLessThanOrEqual(30);
+    expect(screen.getByText(/30 \/ 30 characters/)).toBeInTheDocument();
+  });
+
+  it('prevents description exceeding 300 characters', async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const descInput = screen.getByPlaceholderText('Add a description…') as HTMLTextAreaElement;
+    await user.type(descInput, 'b'.repeat(301));
+
+    // Counter should show 300 / 300 (maxLength prevents typing 301st char)
+    expect(screen.getByText(/300 \/ 300 characters/)).toBeInTheDocument();
+  });
+
+  it('displays character counters for title and description', async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const titleInput = screen.getByPlaceholderText('Task name');
+    await user.type(titleInput, 'Test');
+
+    // Check for counter pattern "4 / 30 characters"
+    expect(screen.getByText(/4 \/ 30 characters/)).toBeInTheDocument();
+
+    const descInput = screen.getByPlaceholderText('Add a description…');
+    await user.type(descInput, 'Description');
+
+    // Check for counter pattern "11 / 300 characters"
+    expect(screen.getByText(/11 \/ 300 characters/)).toBeInTheDocument();
   });
 
   it('selects priority and collection from chip menus', async () => {
@@ -93,15 +134,29 @@ describe('TaskForm', () => {
     expect(screen.getByRole('button', { name: /work/i })).toBeInTheDocument();
   });
 
-  it('calls onSubmit with selected values', async () => {
+  it('calls onSubmit with selected values when time is set', async () => {
     const onSubmit = vi.fn();
     const user = userEvent.setup();
-    renderForm({ onSubmit });
+    const task: Task = {
+      id: '1',
+      title: 'Existing',
+      description: '',
+      priority: 'low',
+      status: 'todo',
+      collection: 'work',
+      createdAt: new Date().toISOString(),
+      order: 0,
+      startTime: '09:00',
+      endTime: '10:00',
+      startDate: new Date().toISOString().split('T')[0],
+    };
 
-    await user.type(screen.getByPlaceholderText('Task name'), 'New task');
-    await user.click(screen.getByRole('button', { name: /collection/i }));
-    await user.click(screen.getByText('Work'));
-    await user.click(screen.getByRole('button', { name: /create task/i }));
+    renderForm({ onSubmit, defaultValues: task });
+
+    const titleInput = screen.getByPlaceholderText('Task name');
+    await user.clear(titleInput);
+    await user.type(titleInput, 'New task');
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith(
@@ -118,11 +173,28 @@ describe('TaskForm', () => {
   it('uses a locked collection and hides the collection chip', async () => {
     const onSubmit = vi.fn();
     const user = userEvent.setup();
-    renderForm({ onSubmit, lockedCollection: 'personal' });
+    const task: Task = {
+      id: '1',
+      title: '',
+      description: '',
+      priority: 'low',
+      status: 'todo',
+      collection: 'personal',
+      createdAt: new Date().toISOString(),
+      order: 0,
+      startTime: '09:00',
+      endTime: '10:00',
+      startDate: new Date().toISOString().split('T')[0],
+    };
+
+    renderForm({ onSubmit, lockedCollection: 'personal', defaultValues: task });
 
     expect(screen.queryByRole('button', { name: /collection/i })).not.toBeInTheDocument();
-    await user.type(screen.getByPlaceholderText('Task name'), 'Locked task');
-    await user.click(screen.getByRole('button', { name: /create task/i }));
+
+    const titleInput = screen.getByPlaceholderText('Task name');
+    await user.clear(titleInput);
+    await user.type(titleInput, 'Locked task');
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ collection: 'personal' }));

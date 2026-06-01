@@ -2,12 +2,16 @@ import { describe, it, expect } from 'vitest';
 import { taskSchema, TITLE_MAX, DESCRIPTION_MAX, COLLECTION_MAX } from '@/lib/validation';
 
 describe('taskSchema', () => {
+  const today = new Date().toISOString().split('T')[0];
   const valid = {
     title: 'Fix the login bug',
     description: 'Users cannot log in',
     priority: 'high' as const,
     status: 'todo' as const,
     collection: 'Work',
+    startTime: '09:00',
+    endTime: '10:00',
+    startDate: today,
   };
 
   it('accepts a fully valid task', () => {
@@ -61,5 +65,36 @@ describe('taskSchema', () => {
     (['todo', 'in-progress', 'done'] as const).forEach((status) => {
       expect(taskSchema.safeParse({ ...valid, status }).success).toBe(true);
     });
+  });
+
+  it('rejects missing startTime', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { startTime, ...noStart } = valid;
+    expect(taskSchema.safeParse({ ...noStart, startTime: '' }).success).toBe(false);
+  });
+
+  it('rejects missing startDate', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { startDate, ...noDate } = valid;
+    expect(taskSchema.safeParse({ ...noDate, startDate: '' }).success).toBe(false);
+  });
+
+  it('rejects startDate in the past', () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const pastDate = yesterday.toISOString().split('T')[0];
+    expect(taskSchema.safeParse({ ...valid, startDate: pastDate }).success).toBe(false);
+  });
+
+  it('rejects when startTime equals endTime (duration must be > 0)', () => {
+    expect(taskSchema.safeParse({ ...valid, startTime: '09:00', endTime: '09:00' }).success).toBe(
+      false,
+    );
+  });
+
+  it('accepts valid startTime and endTime', () => {
+    expect(taskSchema.safeParse({ ...valid, startTime: '09:00', endTime: '10:00' }).success).toBe(
+      true,
+    );
   });
 });

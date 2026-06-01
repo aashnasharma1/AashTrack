@@ -1,31 +1,54 @@
 import { z } from 'zod';
+import { todayISO } from './timeUtils';
 
-export const TITLE_MAX = 100;
-export const DESCRIPTION_MAX = 500;
+export const TITLE_MAX = 30;
+export const DESCRIPTION_MAX = 300;
 export const COLLECTION_MAX = 50;
 
-export const taskSchema = z.object({
-  title: z
-    .string()
-    .min(1, 'Title is required')
-    .max(TITLE_MAX, `Title must be ${TITLE_MAX} characters or fewer`)
-    .refine((v) => v.trim().length > 0, 'Title cannot be blank'),
-  description: z
-    .string()
-    .max(DESCRIPTION_MAX, `Description must be ${DESCRIPTION_MAX} characters or fewer`),
-  priority: z.enum(['low', 'medium', 'high'] as const, {
-    message: 'Please select a priority',
-  }),
-  status: z.string().min(1, 'Please select a status'),
-  collection: z
-    .string()
-    .min(1, 'Collection is required')
-    .max(COLLECTION_MAX, `Collection must be ${COLLECTION_MAX} characters or fewer`),
-  startTime: z.string().optional(),
-  endTime: z.string().optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  recurring: z.boolean().optional(),
-});
+export const taskSchema = z
+  .object({
+    title: z
+      .string()
+      .min(1, 'Task title is required.')
+      .max(TITLE_MAX, `Task title cannot exceed ${TITLE_MAX} characters.`)
+      .refine((v) => v.trim().length > 0, 'Task title is required.'),
+    description: z
+      .string()
+      .max(DESCRIPTION_MAX, `Task description cannot exceed ${DESCRIPTION_MAX} characters.`),
+    priority: z.enum(['low', 'medium', 'high'] as const, {
+      message: 'Please select a priority',
+    }),
+    status: z.string().min(1, 'Please select a status'),
+    collection: z
+      .string()
+      .min(1, 'Collection is required')
+      .max(COLLECTION_MAX, `Collection must be ${COLLECTION_MAX} characters or fewer`),
+    startTime: z.string().min(1, 'Start time is required.'),
+    endTime: z.string().optional(),
+    startDate: z.string().min(1, 'Start date is required.'),
+    endDate: z.string().optional(),
+    recurring: z.boolean().optional(),
+  })
+  .refine(
+    (data) => {
+      if (!data.startTime || !data.endTime) return true;
+      return data.endTime !== data.startTime;
+    },
+    {
+      message: 'Duration must be greater than 0 minutes.',
+      path: ['endTime'],
+    },
+  )
+  .refine(
+    (data) => {
+      if (!data.startDate) return true;
+      const today = todayISO();
+      return data.startDate >= today;
+    },
+    {
+      message: 'Start date must be today or in the future.',
+      path: ['startDate'],
+    },
+  );
 
 export type TaskSchemaValues = z.infer<typeof taskSchema>;

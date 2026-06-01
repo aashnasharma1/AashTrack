@@ -122,7 +122,9 @@ export function TaskForm({
     setBulkRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
 
   const handleBulkSubmit = () => {
-    const valid = bulkRows.filter((r) => r.title.trim());
+    const valid = bulkRows.filter(
+      (r) => r.title.trim().length > 0 && r.title.length <= TITLE_MAX && !r.titleError,
+    );
     if (!valid.length) return;
     valid.forEach((row) =>
       addTask({
@@ -197,6 +199,8 @@ export function TaskForm({
   const startTimeValue = watch('startTime');
   const endTimeValue = watch('endTime');
   const startDateValue = watch('startDate');
+  const titleValue = watch('title');
+  const descriptionValue = watch('description');
 
   const handleClose = () => {
     reset();
@@ -261,7 +265,9 @@ export function TaskForm({
   const statusGroup = statusGroups.find((g) => g.id === statusValue) ?? statusGroups[0];
   const priorityCfg = PRIORITY_OPTS.find((o) => o.value === priorityValue) ?? PRIORITY_OPTS[1];
   const collectionName = collections.find((c) => c.slug === collectionValue)?.name;
-  const validBulkCount = bulkRows.filter((r) => r.title.trim()).length;
+  const validBulkCount = bulkRows.filter(
+    (r) => r.title.trim().length > 0 && r.title.length <= TITLE_MAX && !r.titleError,
+  ).length;
 
   return (
     <Modal
@@ -318,7 +324,14 @@ export function TaskForm({
               autoComplete="off"
               className="w-full bg-transparent text-xl font-bold text-gray-900 outline-none placeholder:text-gray-300 dark:text-gray-100 dark:placeholder:text-gray-700"
             />
-            {errors.title && <p className="mt-1.5 text-xs text-red-500">{errors.title.message}</p>}
+            <div className="mt-1 flex items-center justify-between">
+              <div>
+                {errors.title && <p className="text-xs text-red-500">{errors.title.message}</p>}
+              </div>
+              <span className="text-xs text-gray-400">
+                {titleValue.length} / {TITLE_MAX} characters
+              </span>
+            </div>
           </div>
 
           {/* Description */}
@@ -330,6 +343,16 @@ export function TaskForm({
               rows={3}
               className="w-full resize-none bg-transparent text-sm leading-relaxed text-gray-500 outline-none placeholder:text-gray-300 dark:text-gray-400 dark:placeholder:text-gray-700"
             />
+            <div className="mt-1 flex items-center justify-between">
+              <div>
+                {errors.description && (
+                  <p className="text-xs text-red-500">{errors.description.message}</p>
+                )}
+              </div>
+              <span className="text-xs text-gray-400">
+                {descriptionValue.length} / {DESCRIPTION_MAX} characters
+              </span>
+            </div>
           </div>
 
           <div className="-mx-5 border-t border-gray-100 dark:border-gray-800" />
@@ -486,6 +509,13 @@ export function TaskForm({
               }}
             />
           </div>
+
+          {/* Time/Date errors */}
+          {(errors.startTime || errors.startDate || errors.endTime) && (
+            <p className="mb-2 text-xs text-red-500">
+              {errors.startTime?.message || errors.startDate?.message || errors.endTime?.message}
+            </p>
+          )}
 
           {errors.collection && (
             <p className="-mt-1 mb-2 text-xs text-red-500">{errors.collection.message}</p>
