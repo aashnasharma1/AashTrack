@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { Pencil, Trash2, CircleDashed, Loader2, CheckCircle2, Clock } from 'lucide-react';
 import {
   ClickableStatusBadge,
@@ -11,6 +10,7 @@ import {
 import { isTaskOverdue } from '@/lib/taskUtils';
 import { Button } from '@/components/ui/Button';
 import { useTaskContext } from '@/context/TaskContext';
+import { useConfirmDelete } from '@/hooks/useConfirmDelete';
 import { cn } from '@/lib/cn';
 import type { Collection, Status, Task } from '@/types/task';
 
@@ -44,21 +44,12 @@ export function TaskTableRow({
   const {
     state: { statusGroups },
   } = useTaskContext();
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const { confirming: confirmDelete, handleDelete } = useConfirmDelete(() => onDelete(task.id));
   const collectionName =
     collections.find((c) => c.slug === task.collection)?.name ?? task.collection;
   const statusIcon = STATUS_ICON[task.status];
   const SIcon = statusIcon?.icon ?? CircleDashed;
   const sCls = statusIcon?.cls ?? 'text-gray-400';
-
-  const handleDelete = () => {
-    if (confirmDelete) {
-      onDelete(task.id);
-    } else {
-      setConfirmDelete(true);
-      setTimeout(() => setConfirmDelete(false), 3000);
-    }
-  };
 
   return (
     <tr

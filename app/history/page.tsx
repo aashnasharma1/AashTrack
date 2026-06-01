@@ -42,7 +42,7 @@ function groupByDate(sessions: SessionRecord[]): { label: string; sessions: Sess
 }
 
 export default function HistoryPage() {
-  const { history, stop } = useTimeTracker();
+  const { history, clearHistory } = useTimeTracker();
   const [mounted, setMounted] = useState(false);
   const [clearing, setClearing] = useState(false);
 
@@ -91,21 +91,8 @@ export default function HistoryPage() {
           </button>
           <button
             onClick={() => {
-              // Stop any active session then clear history via localStorage
-              stop();
-              localStorage.setItem(
-                'aashtrack_timer_v1',
-                JSON.stringify({
-                  activeTaskId: null,
-                  activeTaskTitle: '',
-                  isPaused: false,
-                  startedAt: null,
-                  elapsedSecs: 0,
-                  history: [],
-                }),
-              );
+              clearHistory();
               setClearing(false);
-              window.location.reload();
             }}
             className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700"
           >

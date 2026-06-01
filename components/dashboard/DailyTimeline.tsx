@@ -3,53 +3,8 @@
 import { useMemo, useEffect, useState, useRef, useCallback } from 'react';
 import { Clock, CircleDashed, Loader2, CheckCircle2, Plus, Minus } from 'lucide-react';
 import { useTaskContext } from '@/context/TaskContext';
+import { toMin, fmtHour, fmtTime, effectiveEnd, adjustForNextDay } from '@/lib/timeUtils';
 import type { Task } from '@/types/task';
-
-// ── helpers ───────────────────────────────────────────────────────────────────
-
-function toMin(t: string): number {
-  const [h, m] = t.split(':').map(Number);
-  return h * 60 + (m || 0);
-}
-
-/** Axis label — adds "+1" when past midnight */
-function fmtHour(min: number): string {
-  const totalH = Math.floor(min / 60);
-  const h = totalH % 24;
-  const nextDay = totalH >= 24;
-  const suffix = h >= 12 ? 'PM' : 'AM';
-  const label = `${h % 12 || 12}:00 ${suffix}`;
-  return nextDay ? `${label} +1` : label;
-}
-
-function fmtTime(min: number): string {
-  const totalH = Math.floor(min / 60);
-  const h = totalH % 24;
-  const m = min % 60;
-  const nextDay = totalH >= 24;
-  const suffix = h >= 12 ? 'PM' : 'AM';
-  const label = `${h % 12 || 12}:${String(m).padStart(2, '0')} ${suffix}`;
-  return nextDay ? `${label} +1` : label;
-}
-
-/** Resolve effective end minute, handling cross-midnight (end < start). */
-function effectiveEnd(startMin: number, endMin: number): number {
-  return endMin < startMin ? endMin + 24 * 60 : endMin;
-}
-
-/**
- * Adjust task times to handle next-day scheduling.
- * If current time is late (e.g., 11 PM) and task is early (e.g., 6 AM),
- * treat the task as tomorrow by adding 24 hours.
- */
-function adjustForNextDay(taskMin: number, nowMin: number): number {
-  // If we're past 6 PM (18:00) and the task is before noon (12:00),
-  // it's likely a next-day task
-  if (nowMin >= 18 * 60 && taskMin < 12 * 60) {
-    return taskMin + 24 * 60;
-  }
-  return taskMin;
-}
 
 const ICONS: Record<string, React.ElementType> = {
   todo: CircleDashed,

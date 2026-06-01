@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
 import { Trash2, GripVertical, Pencil } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import {
@@ -12,6 +11,8 @@ import {
 import { isTaskOverdue } from '@/lib/taskUtils';
 import { TimeRangePicker } from '@/components/ui/TimePicker';
 import { useTaskContext } from '@/context/TaskContext';
+import { useInlineEdit } from '@/hooks/useInlineEdit';
+import { useConfirmDelete } from '@/hooks/useConfirmDelete';
 import type { Collection, Task, TaskPatch } from '@/types/task';
 
 interface TaskListItemProps {
@@ -35,33 +36,21 @@ export function TaskListItem({
   const {
     state: { statusGroups },
   } = useTaskContext();
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState(task.title);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    setTitleDraft(task.title);
-  }, [task.title]);
-  useEffect(() => {
-    if (editingTitle) inputRef.current?.select();
-  }, [editingTitle]);
+  const {
+    editing: editingTitle,
+    draft: titleDraft,
+    inputRef,
+    startEditing: startEditingTitle,
+    setDraft: setTitleDraft,
+    save: saveTitle,
+    handleKeyDown: handleTitleKeyDown,
+  } = useInlineEdit({
+    value: task.title,
+    onSave: (v) => onUpdate(task.id, { title: v }),
+  });
 
-  const saveTitle = () => {
-    const trimmed = titleDraft.trim();
-    if (trimmed && trimmed !== task.title) onUpdate(task.id, { title: trimmed });
-    else setTitleDraft(task.title);
-    setEditingTitle(false);
-  };
-
-  const handleDelete = () => {
-    if (confirmDelete) {
-      onDelete(task.id);
-    } else {
-      setConfirmDelete(true);
-      setTimeout(() => setConfirmDelete(false), 3000);
-    }
-  };
+  const { confirming: confirmDelete, handleDelete } = useConfirmDelete(() => onDelete(task.id));
 
   return (
     <div
@@ -97,23 +86,14 @@ export function TaskListItem({
             value={titleDraft}
             onChange={(e) => setTitleDraft(e.target.value)}
             onBlur={saveTitle}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                saveTitle();
-              }
-              if (e.key === 'Escape') {
-                setTitleDraft(task.title);
-                setEditingTitle(false);
-              }
-            }}
+            onKeyDown={handleTitleKeyDown}
             maxLength={100}
             className="w-full rounded bg-transparent px-1 text-sm font-medium text-gray-900 outline-none ring-1 ring-blue-300 dark:text-gray-100 dark:ring-blue-700"
           />
         ) : (
           <button
             type="button"
-            onClick={() => setEditingTitle(true)}
+            onClick={() => startEditingTitle()}
             className="w-full text-left"
             title="Click to edit title"
           >

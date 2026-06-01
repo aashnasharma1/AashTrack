@@ -20,6 +20,7 @@ import { GripVertical, Trash2, Plus } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { cn } from '@/lib/cn';
 import { useTaskContext } from '@/context/TaskContext';
+import { useInlineEdit } from '@/hooks/useInlineEdit';
 import type { StatusGroup } from '@/types/task';
 
 const COLOR_PRESETS = [
@@ -97,23 +98,18 @@ function SortableGroupRow({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: group.id,
   });
-  const [editingLabel, setEditingLabel] = useState(false);
-  const [labelDraft, setLabelDraft] = useState(group.label);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    setLabelDraft(group.label);
-  }, [group.label]);
-  useEffect(() => {
-    if (editingLabel) inputRef.current?.select();
-  }, [editingLabel]);
-
-  const saveLabel = () => {
-    const trimmed = labelDraft.trim();
-    if (trimmed && trimmed !== group.label) onUpdate(group.id, { label: trimmed });
-    else setLabelDraft(group.label);
-    setEditingLabel(false);
-  };
+  const {
+    editing: editingLabel,
+    draft: labelDraft,
+    inputRef,
+    startEditing: startEditingLabel,
+    setDraft: setLabelDraft,
+    save: saveLabel,
+    handleKeyDown: handleLabelKeyDown,
+  } = useInlineEdit({
+    value: group.label,
+    onSave: (v) => onUpdate(group.id, { label: v }),
+  });
 
   return (
     <div
@@ -146,23 +142,14 @@ function SortableGroupRow({
             value={labelDraft}
             onChange={(e) => setLabelDraft(e.target.value)}
             onBlur={saveLabel}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                saveLabel();
-              }
-              if (e.key === 'Escape') {
-                setLabelDraft(group.label);
-                setEditingLabel(false);
-              }
-            }}
+            onKeyDown={handleLabelKeyDown}
             maxLength={32}
             className="w-full rounded bg-transparent px-1 text-sm font-medium text-gray-900 outline-none ring-1 ring-blue-300 dark:text-gray-100 dark:ring-blue-700"
           />
         ) : (
           <button
             type="button"
-            onClick={() => !group.isDefault && setEditingLabel(true)}
+            onClick={() => !group.isDefault && startEditingLabel()}
             className={cn(
               'text-left text-sm font-medium text-gray-800 dark:text-gray-200',
               !group.isDefault && 'hover:text-blue-600 dark:hover:text-blue-400',

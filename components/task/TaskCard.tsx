@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
@@ -9,6 +9,8 @@ import { PrioritySelector, ClickableStatusBadge, StatusBadge } from '@/component
 import { TimeRangePicker } from '@/components/ui/TimePicker';
 import { Button } from '@/components/ui/Button';
 import { useTaskContext } from '@/context/TaskContext';
+import { useInlineEdit } from '@/hooks/useInlineEdit';
+import { useConfirmDelete } from '@/hooks/useConfirmDelete';
 import { truncate, formatRelativeDate } from '@/utils/taskUtils';
 import type { Collection, Priority, Task, TaskPatch } from '@/types/task';
 
@@ -43,40 +45,26 @@ export function TaskCard({
     state: { statusGroups },
   } = useTaskContext();
   const [expanded, setExpanded] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // Inline title edit
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState(task.title);
-  const titleInputRef = useRef<HTMLInputElement>(null);
+  const {
+    editing: editingTitle,
+    draft: titleDraft,
+    inputRef: titleInputRef,
+    startEditing: startEditingTitle,
+    setDraft: setTitleDraft,
+    save: saveTitle,
+    handleKeyDown: handleTitleKeyDown,
+  } = useInlineEdit({
+    value: task.title,
+    onSave: (v) => onUpdate?.(task.id, { title: v }),
+  });
 
-  useEffect(() => {
-    setTitleDraft(task.title);
-  }, [task.title]);
-  useEffect(() => {
-    if (editingTitle) titleInputRef.current?.select();
-  }, [editingTitle]);
-
-  const saveTitle = () => {
-    const trimmed = titleDraft.trim();
-    if (trimmed && trimmed !== task.title) onUpdate?.(task.id, { title: trimmed });
-    else setTitleDraft(task.title);
-    setEditingTitle(false);
-  };
+  const { confirming: confirmDelete, handleDelete } = useConfirmDelete(() => onDelete(task.id));
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     disabled: isDragDisabled,
   });
-
-  const handleDelete = () => {
-    if (confirmDelete) {
-      onDelete(task.id);
-    } else {
-      setConfirmDelete(true);
-      setTimeout(() => setConfirmDelete(false), 3000);
-    }
-  };
 
   const hasDescription = task.description.trim().length > 0;
 
@@ -125,23 +113,14 @@ export function TaskCard({
                   value={titleDraft}
                   onChange={(e) => setTitleDraft(e.target.value)}
                   onBlur={saveTitle}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      saveTitle();
-                    }
-                    if (e.key === 'Escape') {
-                      setTitleDraft(task.title);
-                      setEditingTitle(false);
-                    }
-                  }}
+                  onKeyDown={handleTitleKeyDown}
                   maxLength={100}
                   className="w-full rounded px-1 text-base font-bold text-gray-900 outline-none ring-2 ring-blue-400 dark:bg-transparent dark:text-gray-100 dark:ring-blue-500"
                 />
               ) : (
                 <h3
                   onClick={() => {
-                    if (onUpdate) setEditingTitle(true);
+                    if (onUpdate) startEditingTitle();
                     else onEdit?.(task);
                   }}
                   className={cn(
