@@ -12,10 +12,12 @@ import { TaskForm } from './TaskForm';
 import { FilterBar } from './FilterBar';
 import { StatusGroupManager } from './StatusGroupManager';
 import { EmptyState } from './EmptyState';
+import { ResizableTaskTable } from './ResizableTaskTable';
 import { Button } from '@/components/ui/Button';
 import { KeyboardShortcuts } from '@/components/ui/KeyboardShortcuts';
 import { cn } from '@/lib/cn';
 import { filterAndSortTasks } from '@/utils/taskUtils';
+import { resolveScheduleConflicts } from '@/lib/scheduling';
 import type { Task, TaskFormValues, Status, Priority } from '@/types/task';
 
 type ViewMode = 'grouped' | 'board' | 'table';
@@ -174,11 +176,18 @@ export function TaskList({ lockedCollection }: TaskListProps = {}) {
   const handleUpdate = useCallback(
     (
       id: string,
-      patch: { title?: string; priority?: Task['priority']; startTime?: string; endTime?: string },
+      patch: {
+        title?: string;
+        priority?: Task['priority'];
+        startTime?: string;
+        endTime?: string;
+        startDate?: string;
+        endDate?: string;
+      },
     ) => {
       const task = tasks.find((t) => t.id === id);
       if (!task) return;
-      updateTask(id, {
+      const nextValues: TaskFormValues = {
         title: task.title,
         description: task.description,
         priority: task.priority,
@@ -186,8 +195,42 @@ export function TaskList({ lockedCollection }: TaskListProps = {}) {
         collection: task.collection,
         startTime: task.startTime,
         endTime: task.endTime,
+        startDate: task.startDate,
+        endDate: task.endDate,
         ...patch,
-      });
+      };
+
+      if (
+        patch.priority !== undefined ||
+        patch.startTime !== undefined ||
+        patch.endTime !== undefined ||
+        patch.startDate !== undefined ||
+        patch.endDate !== undefined
+      ) {
+        const resolution = resolveScheduleConflicts(tasks, nextValues, id);
+        if (!resolution.ok) {
+          toast.error(resolution.error ?? 'A task already occupies this time slot.');
+          return;
+        }
+
+        resolution.shiftedTasks.forEach(
+          ({ task: shifted, startTime, endTime, startDate, endDate }) => {
+            updateTask(shifted.id, {
+              title: shifted.title,
+              description: shifted.description,
+              priority: shifted.priority,
+              status: shifted.status,
+              collection: shifted.collection,
+              startTime,
+              endTime,
+              startDate,
+              endDate,
+            });
+          },
+        );
+      }
+
+      updateTask(id, nextValues);
     },
     [tasks, updateTask],
   );
@@ -331,85 +374,21 @@ export function TaskList({ lockedCollection }: TaskListProps = {}) {
         />
       ) : viewMode === 'table' ? (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-          <table className="w-full" role="table" aria-label="Task list">
-            <thead>
-              <tr className="border-b border-gray-100 dark:border-gray-800">
-                <th
-                  scope="col"
-                  className="w-10 px-3 py-2.5 text-right text-xs font-medium text-gray-300 dark:text-gray-700"
-                >
-                  #
-                </th>
-                <th
-                  scope="col"
-                  aria-sort={
-                    sort.sortBy === 'title'
-                      ? sort.sortOrder === 'asc'
-                        ? 'ascending'
-                        : 'descending'
-                      : 'none'
-                  }
-                  className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500"
-                >
-                  Name
-                </th>
-                <th
-                  scope="col"
-                  className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500"
-                >
-                  Status
-                </th>
-                <th
-                  scope="col"
-                  className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500"
-                >
-                  Schedule
-                </th>
-                <th
-                  scope="col"
-                  aria-sort={
-                    sort.sortBy === 'priority'
-                      ? sort.sortOrder === 'asc'
-                        ? 'ascending'
-                        : 'descending'
-                      : 'none'
-                  }
-                  className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500"
-                >
-                  Priority
-                </th>
-                {!lockedCollection && (
-                  <th
-                    scope="col"
-                    className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500"
-                  >
-                    Collection
-                  </th>
-                )}
-                <th
-                  scope="col"
-                  className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500"
-                >
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayTasks.map((task, idx) => (
-                <TaskTableRow
-                  key={task.id}
-                  task={task}
-                  rowIndex={idx + 1}
-                  collections={collections}
-                  onEdit={openEdit}
-                  onDelete={handleDelete}
-                  onStatusChange={handleStatusChange}
-                  isLast={idx === displayTasks.length - 1}
-                  showCollection={!lockedCollection}
-                />
-              ))}
-            </tbody>
-          </table>
+          <ResizableTaskTable ariaLabel="Task list" sort={sort} showCollection={!lockedCollection}>
+            {displayTasks.map((task, idx) => (
+              <TaskTableRow
+                key={task.id}
+                task={task}
+                rowIndex={idx + 1}
+                collections={collections}
+                onEdit={openEdit}
+                onDelete={handleDelete}
+                onStatusChange={handleStatusChange}
+                isLast={idx === displayTasks.length - 1}
+                showCollection={!lockedCollection}
+              />
+            ))}
+          </ResizableTaskTable>
         </div>
       ) : (
         <TaskGrouped

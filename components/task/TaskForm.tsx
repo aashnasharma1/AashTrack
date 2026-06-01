@@ -16,20 +16,17 @@ import {
   DURATION_OPTS,
   DEFAULT_DURATION,
 } from '@/lib/timeUtils';
+import { resolveScheduleConflicts } from '@/lib/scheduling';
 import { RecurrencePicker } from './RecurrencePicker';
 import { BulkTaskTable, type BulkRow } from './BulkTaskTable';
 import type { TaskSchemaValues } from '@/lib/validation';
 import type { Collection, Task, TaskFormValues, Priority, TaskRecurrence } from '@/types/task';
 import { cn } from '@/lib/cn';
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const PRIORITY_RANK: Record<Priority, number> = { low: 1, medium: 2, high: 3 };
-
 const PRIORITY_OPTS: { value: Priority; label: string; flagCls: string }[] = [
   { value: 'high', label: 'High', flagCls: 'text-red-500' },
-  { value: 'medium', label: 'Medium', flagCls: 'text-amber-400' },
-  { value: 'low', label: 'Low', flagCls: 'text-emerald-500' },
+  { value: 'medium', label: 'Medium', flagCls: 'text-yellow-500' },
+  { value: 'low', label: 'Low', flagCls: 'text-blue-500' },
 ];
 
 /** Round up to the next 15-minute boundary. */
@@ -137,7 +134,7 @@ function ScheduleFields({
         else setIsCustom(false);
       }
     }
-  }, []); // intentionally runs once on mount for edit-mode hydration
+  }, [startTime, endTime]); // intentionally runs once on mount for edit-mode hydration
 
   const handleStartTimeInput = (raw: string) => {
     onStartTimeChange(raw);
@@ -362,7 +359,7 @@ export function TaskForm({
     return {
       id: Math.random().toString(36).slice(2),
       title: '',
-      priority: 'low',
+      priority: 'medium',
       status: statusGroups[0]?.id ?? 'todo',
       collection: lockedCollection ?? collections[0]?.slug ?? '',
       startTime: hhmm,
@@ -409,7 +406,90 @@ export function TaskForm({
 
     if (!valid.length) return;
 
-    valid.forEach((row) =>
+    const existingShifts = new Map<
+      string,
+      Pick<TaskFormValues, 'startTime' | 'endTime' | 'startDate' | 'endDate'>
+    >();
+    const rowErrors = new Map<string, string>();
+    const pendingRows = valid.map((row) => ({ ...row }));
+    let virtualTasks: Task[] = [...tasks];
+
+    for (const row of pendingRows) {
+      const payload: TaskFormValues = {
+        title: row.title.trim(),
+        description: '',
+        priority: row.priority,
+        status: row.status,
+        collection: row.collection,
+        startTime: row.startTime,
+        endTime: row.endTime,
+        startDate: row.startDate,
+        endDate: row.endDate,
+      };
+      const resolution = resolveScheduleConflicts(virtualTasks, payload);
+
+      if (!resolution.ok) {
+        rowErrors.set(row.id, resolution.error ?? 'A task already occupies this time slot.');
+        continue;
+      }
+
+      resolution.shiftedTasks.forEach(({ task, startTime, endTime, startDate, endDate }) => {
+        virtualTasks = virtualTasks.map((t) =>
+          t.id === task.id ? { ...t, startTime, endTime, startDate, endDate } : t,
+        );
+
+        if (task.id.startsWith('bulk:')) {
+          const shiftedRow = pendingRows.find((r) => `bulk:${r.id}` === task.id);
+          if (shiftedRow) {
+            shiftedRow.startTime = startTime;
+            shiftedRow.endTime = endTime;
+            shiftedRow.startDate = startDate;
+            shiftedRow.endDate = endDate;
+          }
+        } else {
+          existingShifts.set(task.id, { startTime, endTime, startDate, endDate });
+        }
+      });
+
+      virtualTasks.push({
+        id: `bulk:${row.id}`,
+        title: payload.title,
+        description: payload.description,
+        priority: payload.priority,
+        status: payload.status,
+        collection: payload.collection,
+        createdAt: new Date().toISOString(),
+        order: virtualTasks.length,
+        startTime: payload.startTime,
+        endTime: payload.endTime,
+        startDate: payload.startDate,
+        endDate: payload.endDate,
+      });
+    }
+
+    if (rowErrors.size > 0) {
+      setBulkRows((prev) =>
+        prev.map((row) =>
+          rowErrors.has(row.id) ? { ...row, scheduleError: rowErrors.get(row.id) } : row,
+        ),
+      );
+      return;
+    }
+
+    existingShifts.forEach((shift, id) => {
+      const task = tasks.find((t) => t.id === id);
+      if (!task) return;
+      updateTask(id, {
+        title: task.title,
+        description: task.description,
+        priority: task.priority,
+        status: task.status,
+        collection: task.collection,
+        ...shift,
+      });
+    });
+
+    pendingRows.forEach((row) => {
       addTask({
         title: row.title.trim(),
         description: '',
@@ -420,8 +500,8 @@ export function TaskForm({
         endTime: row.endTime,
         startDate: row.startDate,
         endDate: row.endDate,
-      }),
-    );
+      });
+    });
     handleClose();
   };
 
@@ -437,7 +517,7 @@ export function TaskForm({
     defaultValues: {
       title: '',
       description: '',
-      priority: 'low',
+      priority: 'medium',
       status: 'todo',
       collection: lockedCollection ?? '',
       startTime: '',
@@ -473,7 +553,7 @@ export function TaskForm({
         reset({
           title: '',
           description: '',
-          priority: 'low',
+          priority: 'medium',
           status: 'todo',
           collection: lockedCollection ?? '',
           startTime: hhmm,
@@ -521,48 +601,26 @@ export function TaskForm({
     }
 
     if (base.startTime && base.endTime) {
-      const newStart = fromHHMM(base.startTime);
-      const newEnd = fromHHMM(base.endTime);
-      const newDate = base.startDate || todayISO();
-      const ne = newEnd <= newStart ? newEnd + 1440 : newEnd;
-      const newRank = PRIORITY_RANK[base.priority];
+      const resolution = resolveScheduleConflicts(tasks, base, defaultValues?.id);
 
-      const conflicting = tasks.filter((t) => {
-        if (t.id === defaultValues?.id) return false;
-        if (!t.startTime || !t.endTime) return false;
-        if ((t.startDate || todayISO()) !== newDate) return false;
-        const ts = fromHHMM(t.startTime);
-        const te = fromHHMM(t.endTime);
-        const te2 = te <= ts ? te + 1440 : te;
-        return newStart < te2 && ts < ne;
-      });
-
-      if (conflicting.length > 0) {
-        if (base.priority === 'high' && conflicting.some((t) => t.priority === 'high')) {
-          setConflictError(
-            'A high priority task already occupies this slot. High priority tasks cannot overlap.',
-          );
-          return;
-        }
-        conflicting
-          .filter((t) => PRIORITY_RANK[t.priority] < newRank)
-          .forEach((t) => {
-            const ts = fromHHMM(t.startTime!);
-            const te = fromHHMM(t.endTime!);
-            const dur = te <= ts ? te + 1440 - ts : te - ts;
-            updateTask(t.id, {
-              title: t.title,
-              description: t.description,
-              priority: t.priority,
-              status: t.status,
-              collection: t.collection,
-              startTime: toHHMM(newEnd % 1440),
-              endTime: toHHMM((newEnd + dur) % 1440),
-              startDate: t.startDate,
-              endDate: t.endDate,
-            });
-          });
+      if (!resolution.ok) {
+        setConflictError(resolution.error ?? 'A task already occupies this time slot.');
+        return;
       }
+
+      resolution.shiftedTasks.forEach(({ task, startTime, endTime, startDate, endDate }) => {
+        updateTask(task.id, {
+          title: task.title,
+          description: task.description,
+          priority: task.priority,
+          status: task.status,
+          collection: task.collection,
+          startTime,
+          endTime,
+          startDate,
+          endDate,
+        });
+      });
     }
 
     setConflictError(null);
@@ -671,8 +729,9 @@ export function TaskForm({
 
           <div className="-mx-5 border-t border-gray-100 dark:border-gray-800" />
 
-          {/* Scheduling fields — always visible */}
+          {/* Scheduling fields — always visible. key forces remount when switching tasks so duration syncs. */}
           <ScheduleFields
+            key={`${defaultValues?.id ?? 'new'}-${open}`}
             startTime={startTimeValue ?? ''}
             startDate={startDateValue ?? ''}
             endTime={endTimeValue ?? ''}

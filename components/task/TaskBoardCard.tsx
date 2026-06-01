@@ -137,7 +137,7 @@ export function TaskBoardCard({
 
       {/* Metadata row — time · priority · status */}
       <div
-        className="mt-2.5 flex min-w-0 items-center gap-0.5 overflow-hidden"
+        className="items-left mt-2.5 flex min-w-0 flex-col gap-0.5 overflow-hidden"
         onPointerDown={(e) => e.stopPropagation()}
       >
         <TimeRangePicker
@@ -149,16 +149,18 @@ export function TaskBoardCard({
             onUpdate(task.id, { startTime: s, endTime: e, startDate: sd, endDate: ed })
           }
         />
-        <PrioritySelector
-          priority={task.priority}
-          onChange={(p) => onUpdate(task.id, { priority: p })}
-        />
-        <ClickableStatusBadge
-          status={task.status}
-          groups={statusGroups}
-          onCycle={(next) => onStatusChange(task.id, next)}
-          className="ml-auto"
-        />
+        <div>
+          <PrioritySelector
+            priority={task.priority}
+            onChange={(p) => onUpdate(task.id, { priority: p })}
+          />
+          <ClickableStatusBadge
+            status={task.status}
+            groups={statusGroups}
+            onCycle={(next) => onStatusChange(task.id, next)}
+            className="ml-auto"
+          />
+        </div>
       </div>
     </div>
   );

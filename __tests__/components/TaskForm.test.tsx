@@ -159,7 +159,7 @@ describe('TaskForm', () => {
     const user = userEvent.setup();
     renderForm();
 
-    await user.click(screen.getByRole('button', { name: /low/i }));
+    await user.click(screen.getByRole('button', { name: /medium/i }));
     await user.click(screen.getByText('High'));
 
     await user.click(screen.getByRole('button', { name: /collection/i }));

@@ -16,8 +16,8 @@ import type { Collection, Priority, Task, TaskPatch } from '@/types/task';
 
 const PRIORITY_BORDER: Record<Priority, string> = {
   high: 'border-l-red-400 dark:border-l-red-500',
-  medium: 'border-l-amber-400 dark:border-l-amber-500',
-  low: 'border-l-gray-200 dark:border-l-gray-700',
+  medium: 'border-l-yellow-400 dark:border-l-yellow-500',
+  low: 'border-l-blue-400 dark:border-l-blue-500',
 };
 
 interface TaskCardProps {

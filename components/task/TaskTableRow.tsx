@@ -1,6 +1,6 @@
 'use client';
 
-import { Pencil, Trash2, CircleDashed, Loader2, CheckCircle2, Clock } from 'lucide-react';
+import { Pencil, Trash2, CircleDashed, Loader2, CheckCircle2 } from 'lucide-react';
 import {
   ClickableStatusBadge,
   PriorityFlag,
@@ -8,6 +8,7 @@ import {
   OverdueBadge,
 } from '@/components/ui/Badge';
 import { isTaskOverdue } from '@/lib/taskUtils';
+import { fmtScheduleDateTime, fmtDuration } from '@/lib/timeUtils';
 import { Button } from '@/components/ui/Button';
 import { useTaskContext } from '@/context/TaskContext';
 import { useConfirmDelete } from '@/hooks/useConfirmDelete';
@@ -94,14 +95,33 @@ export function TaskTableRow({
         />
       </td>
 
-      {/* Schedule */}
+      {/* Start Time */}
       <td className="px-3 py-3">
-        {task.startTime || task.endTime ? (
-          <span className="flex items-center gap-1 text-xs tabular-nums text-gray-500 dark:text-gray-400">
-            <Clock className="h-3 w-3 text-gray-400" aria-hidden="true" />
-            {task.startTime ?? ''}
-            {task.startTime && task.endTime ? ' – ' : ''}
-            {task.endTime ?? ''}
+        {fmtScheduleDateTime(task.startDate, task.startTime) ? (
+          <span className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
+            {fmtScheduleDateTime(task.startDate, task.startTime)}
+          </span>
+        ) : (
+          <span className="text-xs text-gray-300 dark:text-gray-700">—</span>
+        )}
+      </td>
+
+      {/* End Time */}
+      <td className="px-3 py-3">
+        {fmtScheduleDateTime(task.endDate ?? task.startDate, task.endTime) ? (
+          <span className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
+            {fmtScheduleDateTime(task.endDate ?? task.startDate, task.endTime)}
+          </span>
+        ) : (
+          <span className="text-xs text-gray-300 dark:text-gray-700">—</span>
+        )}
+      </td>
+
+      {/* Duration */}
+      <td className="px-3 py-3">
+        {fmtDuration(task.startTime, task.endTime) ? (
+          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+            {fmtDuration(task.startTime, task.endTime)}
           </span>
         ) : (
           <span className="text-xs text-gray-300 dark:text-gray-700">—</span>

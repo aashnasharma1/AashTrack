@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { PriorityFlag, StatusBadge } from '@/components/ui/Badge';
 import { cn } from '@/lib/cn';
 import { formatRelativeDate } from '@/utils/taskUtils';
+import { fmtDuration, fmtScheduleDateTime } from '@/lib/timeUtils';
 
 export default function CollectionsPage() {
   const { collections, tasks, addCollection, deleteCollection } = useTasks();
@@ -184,7 +185,7 @@ export default function CollectionsPage() {
                               key={task.id}
                               className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/40"
                             >
-                              {/* Priority flag */}
+                              {/* Priority */}
                               <PriorityFlag priority={task.priority} className="mt-0.5" />
 
                               {/* Title + description */}
@@ -199,11 +200,21 @@ export default function CollectionsPage() {
                                 )}
                                 {/* Time range */}
                                 {(task.startTime || task.endTime) && (
-                                  <span className="mt-1 flex items-center gap-1 text-xs text-gray-400 dark:text-gray-600">
+                                  <span className="mt-1 flex flex-wrap items-center gap-1 text-xs text-gray-400 dark:text-gray-600">
                                     <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
-                                    {task.startTime ?? ''}
+                                    {fmtScheduleDateTime(task.startDate, task.startTime) ??
+                                      task.startTime ??
+                                      ''}
                                     {task.startTime && task.endTime ? ' – ' : ''}
-                                    {task.endTime ?? ''}
+                                    {fmtScheduleDateTime(
+                                      task.endDate ?? task.startDate,
+                                      task.endTime,
+                                    ) ??
+                                      task.endTime ??
+                                      ''}
+                                    {fmtDuration(task.startTime, task.endTime) && (
+                                      <span>· {fmtDuration(task.startTime, task.endTime)}</span>
+                                    )}
                                   </span>
                                 )}
                               </div>

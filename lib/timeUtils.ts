@@ -21,8 +21,9 @@ export function todayISO(): string {
 
 /** Returns the ISO date string for the day after the given ISO date. */
 export function addOneDay(iso: string): string {
-  const d = new Date(`${iso}T00:00:00`);
-  d.setDate(d.getDate() + 1);
+  const [year, month, day] = iso.split('-').map(Number);
+  const d = new Date(Date.UTC(year, month - 1, day));
+  d.setUTCDate(d.getUTCDate() + 1);
   return d.toISOString().slice(0, 10);
 }
 
@@ -51,6 +52,62 @@ export const DURATION_OPTS = [
 ] as const;
 
 export const DEFAULT_DURATION = 30;
+
+// ── Display formatters ────────────────────────────────────────────────────────
+
+const MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+] as const;
+
+/**
+ * Format a YYYY-MM-DD date + HH:MM time as "DD Mon YYYY, HH:MM AM/PM".
+ * Returns null if either argument is missing.
+ * Example: fmtScheduleDateTime('2026-06-01', '10:30') → "01 Jun 2026, 10:30 AM"
+ */
+export function fmtScheduleDateTime(
+  dateISO: string | undefined,
+  timeHHMM: string | undefined,
+): string | null {
+  if (!dateISO || !timeHHMM) return null;
+  const [y, m, d] = dateISO.split('-').map(Number);
+  const totalMin = fromHHMM(timeHHMM);
+  const h = Math.floor(totalMin / 60) % 24;
+  const min = totalMin % 60;
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${String(d).padStart(2, '0')} ${MONTHS[m - 1]} ${y}, ${String(h12).padStart(2, '0')}:${String(min).padStart(2, '0')} ${suffix}`;
+}
+
+/**
+ * Derive a human-readable duration label from startTime and endTime (HH:MM).
+ * Returns null if either is missing. Handles cross-midnight.
+ * Examples: "30 min", "1 hr", "2 hr", "90 min"
+ */
+export function fmtDuration(
+  startTime: string | undefined,
+  endTime: string | undefined,
+): string | null {
+  if (!startTime || !endTime) return null;
+  let diff = fromHHMM(endTime) - fromHHMM(startTime);
+  if (diff <= 0) diff += 24 * 60;
+  if (diff <= 0) return null;
+  if (diff % 60 === 0) {
+    const hrs = diff / 60;
+    return hrs === 1 ? '1 hr' : `${hrs} hr`;
+  }
+  return `${diff} min`;
+}
 
 // ── Timeline / scheduling utilities ──────────────────────────────────────────
 

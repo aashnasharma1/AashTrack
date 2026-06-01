@@ -3,11 +3,12 @@
 import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { DailyTimeline } from '@/components/dashboard/DailyTimeline';
+// import { DailyTimeline } from '@/components/dashboard/DailyTimeline';
 import { WorkloadByStatus } from '@/components/dashboard/WorkloadByStatus';
 import { TimeTracker } from '@/components/dashboard/TimeTracker';
 import { TaskTableRow } from '@/components/task/TaskTableRow';
 import { TaskForm } from '@/components/task/TaskForm';
+import { ResizableTaskTable } from '@/components/task/ResizableTaskTable';
 import { useTaskContext } from '@/context/TaskContext';
 import type { Task, TaskFormValues } from '@/types/task';
 
@@ -56,7 +57,7 @@ function DashboardContent() {
   return (
     <div className="flex flex-col gap-5">
       {/* Timeline — full width */}
-      <DailyTimeline />
+      {/* <DailyTimeline /> */}
 
       {/* Two-column insights row — min-h forces equal stretch */}
       <div className="grid h-[380px] grid-cols-1 gap-5 md:grid-cols-2">
@@ -82,68 +83,20 @@ function DashboardContent() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full" role="table" aria-label="All tasks">
-              <thead>
-                <tr className="border-b border-gray-100 dark:border-gray-800">
-                  <th
-                    scope="col"
-                    className="w-10 px-3 py-2.5 text-right text-xs font-medium text-gray-300 dark:text-gray-700"
-                  >
-                    #
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500"
-                  >
-                    Name
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500"
-                  >
-                    Status
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500"
-                  >
-                    Schedule
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500"
-                  >
-                    Priority
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500"
-                  >
-                    Collection
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500"
-                  >
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {tasks.map((task, idx) => (
-                  <TaskTableRow
-                    key={task.id}
-                    task={task}
-                    rowIndex={idx + 1}
-                    collections={collections}
-                    onEdit={openEdit}
-                    onDelete={handleDelete}
-                    onStatusChange={handleStatusChange}
-                    isLast={idx === tasks.length - 1}
-                  />
-                ))}
-              </tbody>
-            </table>
+            <ResizableTaskTable ariaLabel="All tasks" showCollection>
+              {tasks.map((task, idx) => (
+                <TaskTableRow
+                  key={task.id}
+                  task={task}
+                  rowIndex={idx + 1}
+                  collections={collections}
+                  onEdit={openEdit}
+                  onDelete={handleDelete}
+                  onStatusChange={handleStatusChange}
+                  isLast={idx === tasks.length - 1}
+                />
+              ))}
+            </ResizableTaskTable>
           </div>
         )}
       </div>

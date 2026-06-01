@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { X, ChevronDown, ArrowUpDown, CircleDashed, Flag, Layers } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useTaskContext } from '@/context/TaskContext';
+import { PriorityBadge } from '@/components/ui/Badge';
 import type { Collection, FilterState, SortState, Priority, SortBy } from '@/types/task';
 import { PRIORITY_LABELS } from '@/types/task';
 
@@ -19,8 +20,8 @@ interface FilterBarProps {
 
 const PRIORITY_OPTIONS: { value: Priority; label: string; flagCls: string }[] = [
   { value: 'high', label: PRIORITY_LABELS['high'], flagCls: 'text-red-500' },
-  { value: 'medium', label: PRIORITY_LABELS['medium'], flagCls: 'text-amber-400' },
-  { value: 'low', label: PRIORITY_LABELS['low'], flagCls: 'text-emerald-500' },
+  { value: 'medium', label: PRIORITY_LABELS['medium'], flagCls: 'text-yellow-500' },
+  { value: 'low', label: PRIORITY_LABELS['low'], flagCls: 'text-blue-500' },
 ];
 
 const SORT_OPTIONS: { value: SortBy; label: string }[] = [
@@ -201,7 +202,7 @@ export function FilterBar({
             aria-pressed={filter.priority === opt.value}
           >
             <Flag className={cn('h-3.5 w-3.5 shrink-0', opt.flagCls)} aria-hidden="true" />
-            {opt.label}
+            <PriorityBadge priority={opt.value} />
             {filter.priority === opt.value && <span className="ml-auto text-blue-500">✓</span>}
           </button>
         ))}

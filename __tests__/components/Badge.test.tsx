@@ -26,7 +26,7 @@ describe('PriorityBadge', () => {
 
   it('applies custom className', () => {
     const { container } = render(<PriorityBadge priority="high" className="custom-class" />);
-    expect(container.querySelector('svg')).toHaveClass('custom-class');
+    expect(container.querySelector('[aria-label="High priority"]')).toHaveClass('custom-class');
   });
 });
 

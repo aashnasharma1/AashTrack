@@ -1,20 +1,15 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, CircleDashed, Loader2, CheckCircle2, Flag, Play } from 'lucide-react';
+import { ChevronDown, CircleDashed, Loader2, CheckCircle2, Play } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import type { Priority, StatusGroup, Task } from '@/types/task';
+import { PriorityBadge } from '@/components/ui/Badge';
+import type { StatusGroup, Task } from '@/types/task';
 
 const STATUS_ICONS: Record<string, React.ElementType> = {
   todo: CircleDashed,
   'in-progress': Loader2,
   done: CheckCircle2,
-};
-
-const PRIORITY_CLS: Record<Priority, string> = {
-  high: 'text-red-500',
-  medium: 'text-amber-400',
-  low: 'text-emerald-500',
 };
 
 interface TaskDropdownProps {
@@ -60,10 +55,7 @@ export function TaskDropdown({ tasks, statusGroups, selectedId, onSelect }: Task
             <span className="flex-1 truncate text-left font-medium text-gray-800 dark:text-gray-200">
               {selected.title}
             </span>
-            <Flag
-              className={cn('h-3 w-3 shrink-0', PRIORITY_CLS[selected.priority])}
-              strokeWidth={1.5}
-            />
+            <PriorityBadge priority={selected.priority} />
           </>
         ) : (
           <>
@@ -126,10 +118,7 @@ export function TaskDropdown({ tasks, statusGroups, selectedId, onSelect }: Task
                         >
                           {task.title}
                         </span>
-                        <Flag
-                          className={cn('h-3 w-3 shrink-0', PRIORITY_CLS[task.priority])}
-                          strokeWidth={1.5}
-                        />
+                        <PriorityBadge priority={task.priority} />
                       </div>
                       {task.description && (
                         <p className="truncate text-[10px] text-gray-400 dark:text-gray-600">

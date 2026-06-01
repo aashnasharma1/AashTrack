@@ -1,32 +1,36 @@
 import { useState, useRef, useEffect, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Flag, Repeat } from 'lucide-react';
+import { Repeat } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import type { Priority, StatusGroup } from '@/types/task';
 import { PRIORITY_LABELS } from '@/types/task';
 
-// ── Priority flag ─────────────────────────────────────────────────────────────
+// ── Priority label ────────────────────────────────────────────────────────────
 
-const FLAG_COLORS: Record<Priority, string> = {
-  high: 'text-red-500',
-  medium: 'text-amber-400',
-  low: 'text-emerald-500',
+const PRIORITY_TEXT_COLORS: Record<Priority, string> = {
+  high: 'text-red-600 dark:text-red-400',
+  medium: 'text-yellow-600 dark:text-yellow-400',
+  low: 'text-blue-600 dark:text-blue-400',
 };
 
-export function PriorityFlag({ priority, className }: { priority: Priority; className?: string }) {
+export function PriorityBadge({ priority, className }: { priority: Priority; className?: string }) {
   const label = `${PRIORITY_LABELS[priority]} priority`;
   return (
-    <span title={label} aria-label={label} className="inline-flex shrink-0">
-      <Flag
-        className={cn('h-3.5 w-3.5', FLAG_COLORS[priority], className)}
-        strokeWidth={1.5}
-        aria-hidden="true"
-      />
+    <span
+      title={label}
+      aria-label={label}
+      className={cn(
+        'inline-flex shrink-0 whitespace-nowrap text-xs font-semibold',
+        PRIORITY_TEXT_COLORS[priority],
+        className,
+      )}
+    >
+      {PRIORITY_LABELS[priority]}
     </span>
   );
 }
 
-export { PriorityFlag as PriorityBadge };
+export { PriorityBadge as PriorityFlag };
 
 export function RecurringBadge({ className }: { className?: string }) {
   return (
@@ -110,9 +114,9 @@ export function PrioritySelector({ priority, onChange, className }: PrioritySele
         type="button"
         onClick={() => (open ? setOpen(false) : openDropdown())}
         title={`Priority: ${PRIORITY_LABELS[priority]}`}
-        className="rounded p-0.5 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+        className="rounded px-1.5 py-0.5 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
       >
-        <PriorityFlag priority={priority} />
+        <PriorityBadge priority={priority} />
       </button>
       {open &&
         typeof document !== 'undefined' &&
@@ -135,8 +139,7 @@ export function PrioritySelector({ priority, onChange, className }: PrioritySele
                   p === priority && 'bg-gray-50 dark:bg-gray-800',
                 )}
               >
-                <PriorityFlag priority={p} />
-                {PRIORITY_LABELS[p]}
+                <PriorityBadge priority={p} />
                 {p === priority && <span className="ml-auto text-blue-500">✓</span>}
               </button>
             ))}

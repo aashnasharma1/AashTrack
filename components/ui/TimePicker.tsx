@@ -5,7 +5,14 @@ import { createPortal } from 'react-dom';
 import { Clock, ChevronUp, ChevronDown } from 'lucide-react';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { cn } from '@/lib/cn';
-import { toHHMM, fromHHMM, todayISO, addOneDay } from '@/lib/timeUtils';
+import {
+  toHHMM,
+  fromHHMM,
+  todayISO,
+  addOneDay,
+  fmtScheduleDateTime,
+  fmtDuration,
+} from '@/lib/timeUtils';
 
 const DURATION_OPTS = [
   { label: '5 min', minutes: 5 },
@@ -30,6 +37,7 @@ export function TimeRangePicker({
   startTime,
   endTime,
   startDate,
+  endDate,
   onChange,
   inline,
 }: TimeRangePickerProps) {
@@ -117,17 +125,6 @@ export function TimeRangePicker({
   };
 
   const hasSchedule = !!startTime;
-
-  const displayDurMin =
-    startTime && endTime
-      ? (() => {
-          const d = fromHHMM(endTime) - fromHHMM(startTime);
-          return d < 0 ? d + 24 * 60 : d;
-        })()
-      : null;
-  const durLabel =
-    DURATION_OPTS.find((o) => o.minutes === (displayDurMin ?? duration))?.label ??
-    (displayDurMin ? `${displayDurMin}min` : '');
 
   if (inline) {
     return (
@@ -332,14 +329,24 @@ export function TimeRangePicker({
         type="button"
         onClick={openPicker}
         className={cn(
-          'flex max-w-28 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-blue-900',
-          !hasSchedule ? 'text-gray-400' : '',
+          'flex items-start gap-1.5 rounded-lg px-2 py-1 text-xs font-medium transition-colors hover:bg-gray-100 dark:hover:bg-gray-800',
+          !hasSchedule ? 'text-gray-400' : 'text-gray-600 dark:text-gray-300',
         )}
       >
-        <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-        <p className="max-w-20 truncate whitespace-nowrap">
-          {hasSchedule ? `${durLabel} · ${startTime}–${endTime}` : 'Duration'}
-        </p>
+        <Clock className="mt-0.5 h-3 w-3 shrink-0 text-gray-400" aria-hidden="true" />
+        {hasSchedule ? (
+          <div className="min-w-0 text-left">
+            <p className="truncate tabular-nums">
+              {fmtScheduleDateTime(startDate, startTime) ?? startTime}
+            </p>
+            <p className="truncate tabular-nums text-gray-400 dark:text-gray-500">
+              → {fmtScheduleDateTime(endDate ?? startDate, endTime) ?? endTime}
+              {fmtDuration(startTime, endTime) ? ` · ${fmtDuration(startTime, endTime)}` : ''}
+            </p>
+          </div>
+        ) : (
+          <span>Set schedule</span>
+        )}
       </button>
 
       {open &&

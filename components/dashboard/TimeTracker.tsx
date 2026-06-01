@@ -11,14 +11,12 @@ import {
   CircleDashed,
   Loader2,
   CheckCircle2,
-  Flag,
 } from 'lucide-react';
-import type { Priority } from '@/types/task';
 import { useRouter } from 'next/navigation';
 import { useTaskContext } from '@/context/TaskContext';
 import { useTimeTracker } from '@/hooks/useTimeTracker';
 import { TaskDropdown } from './TaskDropdown';
-import { cn } from '@/lib/cn';
+import { PriorityBadge } from '@/components/ui/Badge';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -34,12 +32,6 @@ const STATUS_ICONS: Record<string, ElementType> = {
   todo: CircleDashed,
   'in-progress': Loader2,
   done: CheckCircle2,
-};
-
-const PRIORITY_CLS: Record<Priority, string> = {
-  high: 'text-red-500',
-  medium: 'text-amber-400',
-  low: 'text-emerald-500',
 };
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -143,18 +135,7 @@ export function TimeTracker() {
               </span>
             )}
             {activeTask?.priority && (
-              <span
-                className={cn(
-                  'inline-flex items-center gap-1 rounded-full px-2 py-1 font-semibold',
-                  activeTask.priority === 'high'
-                    ? 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400'
-                    : activeTask.priority === 'medium'
-                      ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400'
-                      : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
-                )}
-              >
-                {activeTask.priority.charAt(0).toUpperCase() + activeTask.priority.slice(1)}
-              </span>
+              <PriorityBadge priority={activeTask.priority} className="rounded-full px-2 py-1" />
             )}
           </div>
 
@@ -246,10 +227,7 @@ export function TimeTracker() {
                           <span className="flex-1 truncate text-sm font-medium text-gray-800 dark:text-gray-200">
                             {task.title}
                           </span>
-                          <Flag
-                            className={cn('h-3 w-3 shrink-0', PRIORITY_CLS[task.priority])}
-                            strokeWidth={1.5}
-                          />
+                          <PriorityBadge priority={task.priority} />
                         </div>
 
                         {/* Description */}

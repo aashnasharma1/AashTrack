@@ -133,10 +133,12 @@ function DroppableGroup({
           role="rowgroup"
         >
           {/* Column headers */}
-          <div className="grid grid-cols-[20px_1fr_112px_52px_88px_56px] items-center gap-2 border-b border-gray-50 px-3 py-1.5 dark:border-gray-800">
+          <div className="grid grid-cols-[20px_1fr_250px_80px_88px_56px] items-center gap-2 border-b border-gray-50 px-3 py-1.5 dark:border-gray-800">
             <span />
             <span className="text-xs font-medium text-gray-400 dark:text-gray-600">Name</span>
-            <span className="text-xs font-medium text-gray-400 dark:text-gray-600">Schedule</span>
+            <span className="text-center text-xs font-medium text-gray-400 dark:text-gray-600">
+              Schedule (Start → End)
+            </span>
             <span className="text-center text-xs font-medium text-gray-400 dark:text-gray-600">
               Priority
             </span>

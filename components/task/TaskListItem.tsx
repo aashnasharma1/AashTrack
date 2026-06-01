@@ -56,7 +56,7 @@ export function TaskListItem({
     <div
       className={cn(
         'group grid items-center gap-2 px-3 py-2 transition-colors',
-        'grid-cols-[20px_1fr_112px_52px_88px_56px]',
+        'grid-cols-[20px_1fr_250px_80px_88px_56px]',
         'hover:bg-gray-50 dark:hover:bg-gray-800/50',
         confirmDelete && 'bg-red-50/40 dark:bg-red-950/20',
       )}
