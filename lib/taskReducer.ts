@@ -10,6 +10,7 @@ import type {
 import { DEFAULT_STATUS_GROUPS } from '@/types/task';
 import { generateId, toSlug, uniqueSlug } from '@/utils/taskUtils';
 
+// Actions that modify the task state. Each action is immutable — the reducer always returns a new state.
 export type TaskAction =
   | { type: 'HYDRATE'; payload: TasksState }
   // collections
