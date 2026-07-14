@@ -128,7 +128,7 @@ export function TaskDropdown({ tasks, statusGroups, selectedId, onSelect }: Task
                         )}
                       </div>
                       {isSelected && (
-                        <span className="mt-0.5 shrink-0 text-xs text-violet-600">✓</span>
+                        <span className="mt-0.5 shrink-0 text-xs text-violet-500">✓</span>
                       )}
                     </button>
                   );
