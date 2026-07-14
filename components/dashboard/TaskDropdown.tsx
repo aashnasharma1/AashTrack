@@ -113,7 +113,7 @@ export function TaskDropdown({ tasks, statusGroups, selectedId, onSelect }: Task
                             className={cn(
                               'flex-1 truncate text-xs font-medium',
                               isSelected
-                                ? 'text-violet-700 dark:text-violet-400'
+                                ? 'text-violet-700 dark:text-violet-500'
                                 : 'text-gray-800 dark:text-gray-200',
                             )}
                           >
