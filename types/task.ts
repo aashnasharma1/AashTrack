@@ -33,7 +33,7 @@ export interface StatusGroup {
 export const DEFAULT_STATUS_GROUPS: StatusGroup[] = [
   { id: 'todo', label: 'To Do', color: '#f43f5e', isDefault: true },
   { id: 'in-progress', label: 'In Progress', color: '#3b82f6', isDefault: true },
-  { id: 'done', label: 'Done', color: '#10b981', isDefault: true },
+  { id: 'done', label: 'Done', color: '#10b1', isDefault: true },
 ];
 
 // ─── Collection — first-class entity ─────────────────────────────────────────
